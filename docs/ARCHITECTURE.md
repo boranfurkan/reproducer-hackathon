@@ -33,8 +33,12 @@ Long model calls use `background=True` on the Interactions API, so the orchestra
 - `config.ts`: model names and caps.
 - `types.ts`: environment profile, sandbox interface, run events.
 - `gemini.ts`: client, retry on 429/503, token budget per run.
-- `sandbox/`: sandbox implementations.
-- Later: `agent/` (the loop steps), `github.ts`, `mongo.ts`, `events.ts`.
+- `redact.ts`, `mongo.ts`, `events.ts`: secret redaction, shared MongoDB client, run and event recording.
+- `agent/`: `argon.ts` (JSON output), `schemas.ts`, `profiles.ts` (baseline and ablations), `repo.ts` (repo digest from GitHub), `investigate.ts` (the loop).
+- `harness/scripts.ts`: scripts that run inside the sandbox.
+- `sandbox/antigravity.ts`: the sandbox implementation.
+- Still to build: `github.ts` (PR creation), approval handling, search and memory queries.
+See [STATUS.md](STATUS.md) for the full layout and how to run it.
 
 ### Sandbox
 Interface in `types.ts`. Primary implementation drives an Antigravity managed agent as a remote shell: one exact command per call, output returned untouched. This is fast (about 22 s and 12k tokens per call measured) compared with free-form tasks (about 2 min and 70k tokens).

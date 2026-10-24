@@ -1,6 +1,8 @@
-// Run one investigation from the terminal: npm run investigate -- [issue number] [--notes "..."] [--env <environment id>]
+// Run one investigation from the terminal: npm run investigate -- [issue number] [--notes "..."] [--env <environment id>] [--no-db]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { investigate } from "../src/lib/agent/investigate";
+import { startRun } from "../src/lib/events";
+import { closeMongo } from "../src/lib/mongo";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => {
@@ -18,11 +20,27 @@ async function main() {
   const octokit = new Octokit();
   const { data: issue } = await octokit.rest.issues.get({ owner: repo.owner, repo: repo.name, issue_number: issueNumber });
 
-  const result = await investigate(
-    { repo, issueNumber, title: issue.title, body: issue.body ?? "", notes: flag("--notes") ?? "" },
-    (type, summary) => console.log(`${stamp()} ${type.toUpperCase().padEnd(18)} ${summary}`),
-    { environmentId: flag("--env") ?? null },
-  );
+  const ticket = { repo, issueNumber, title: issue.title, body: issue.body ?? "", notes: flag("--notes") ?? "" };
+  const record = args.includes("--no-db") ? null : await startRun(ticket);
+  if (record) console.log(`Run ${record.runId} (events are stored in MongoDB)`);
+
+  let result;
+  try {
+    result = await investigate(
+      ticket,
+      (type, summary, data) => {
+        console.log(`${stamp()} ${type.toUpperCase().padEnd(18)} ${summary}`);
+        record?.emit(type, summary, data);
+      },
+      { environmentId: flag("--env") ?? null },
+    );
+  } catch (e) {
+    await record?.fail(e);
+    await closeMongo();
+    throw e;
+  }
+  await record?.finish(result);
+  await closeMongo();
 
   console.log(`\nStatus: ${result.status}${result.reason ? ` (${result.reason})` : ""}`);
   console.log(`Tokens used: ${result.tokensUsed} | sandbox environment: ${result.environmentId}`);

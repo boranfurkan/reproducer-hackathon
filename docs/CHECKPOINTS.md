@@ -24,7 +24,7 @@ Bug 1 goes from issue text to a green fix end to end, with no UI.
 - [x] Matrix isolates `locale` as the variable
 - [x] Failing test written, fails on reporter profile only
 - [x] Fix applied, matrix all green
-- [ ] Events written to MongoDB
+- [x] Events written to MongoDB (verified: run document plus 12 redacted events, ordered by `seq`)
 
 Measured on 24 Oct (bug 1, terminal runner): warm 187 s, cold 269 s, about 67k tokens.
 

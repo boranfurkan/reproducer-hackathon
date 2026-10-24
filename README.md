@@ -24,6 +24,7 @@ Built for Encode London Hackathon 2026. Entered in: Google DeepMind (Gemini 4 Ar
 
 ## Docs
 
+- [Status and handoff](docs/STATUS.md): start here
 - [Architecture](docs/ARCHITECTURE.md)
 - [Agent loop](docs/AGENT-LOOP.md)
 - [MongoDB design](docs/MONGODB.md)
