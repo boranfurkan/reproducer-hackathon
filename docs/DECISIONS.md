@@ -4,6 +4,8 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 ## Decided
 
+**D-26. The Antigravity sandbox agent runs on Argon.** `agent_config.model` is `gemini-4-argon` (`MODELS.sandboxAgentModel`, override with `SANDBOX_AGENT_MODEL`). The agent only executes exact commands, and a one-line call measured 13 to 15 s on Argon against 13 s on the default Flash, with about 10% more tokens. This makes Argon the model behind every step and matches the DeepMind pathway text (Argon inside an Antigravity sandbox). A full investigation on Argon is compared with the Flash runs in STATUS.md.
+
 **D-25. Only installed engines are tried, and a missing engine skips its profiles instead of crashing the matrix.** A stressor proposing Firefox crashed a run: the sandbox has Chromium and WebKit only (Firefox needs `MOZ_DISABLE_CONTENT_SANDBOX=1` and another download), and the harness launched every engine in the job without a guard. Stressors are limited to `chromium` and `webkit`, and the harness skips (and reports as `@@SKIPPED@@`) any engine that cannot launch.
 
 **D-24. After the fix, only the profiles that belong to this issue must pass.** A repository can hold several bugs, and the stressor profiles find them: with bugs 1 and 2 in the same app, "reporter plus storage blocked" fails before and after the fix for bug 1. Requiring every profile to pass made the agent fix bug 2 as well and pull `src/prefs.js` into an unrelated change. Now a profile is required to pass if it passed in round 1, is the focus, or failed in round 1 with the same signature as the focus (same failed step and same first console error). Profiles that failed for a different reason are reported as "other problems" (timeline, run page, PR text) and the model is told not to fix them.
@@ -54,7 +56,7 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 ## Open questions
 
-**Q-02. Which model runs inside the sandbox agent?** (Currently the default, gemini-3.8-flash, as a remote shell.) The Antigravity agent defaults to `gemini-3.8-flash`. Argon can be selected with `agent_config.model`. Likely answer: flash for the shell-runner calls (cheap, fast), and an Argon-backed agent only for the bounded fix step if it is fast enough. Measure before deciding.
+**Q-02. (answered, see D-26)** Which model runs inside the sandbox agent? Argon. Whether an Argon-backed agent should also do the fix itself inside the sandbox (instead of the orchestrator proposing it) is still open and probably not worth the extra minutes. The Antigravity agent defaults to `gemini-3.8-flash`. Argon can be selected with `agent_config.model`. Likely answer: flash for the shell-runner calls (cheap, fast), and an Argon-backed agent only for the bounded fix step if it is fast enough. Measure before deciding.
 
 **Q-03. Give the sandbox repo access without exposing the GitHub token.** Antigravity has a credentials feature and per-domain header injection in the egress allowlist. Not tested yet.
 

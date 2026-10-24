@@ -3,6 +3,9 @@
 export const MODELS = {
   brain: "gemini-4-argon",
   sandboxAgent: "antigravity-preview-09-2026",
+  // The model that runs inside the Antigravity agent. It only executes exact commands, so this barely affects speed (measured 13 to 15 s
+  // per call for Argon against 13 s for the default Flash) but makes Argon the model behind every step. Set SANDBOX_AGENT_MODEL to override.
+  sandboxAgentModel: process.env.SANDBOX_AGENT_MODEL || "gemini-4-argon",
   summary: "gemini-3.8-flash",
 } as const;
 

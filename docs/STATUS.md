@@ -8,7 +8,7 @@ Read this first when picking the project up. It records where things stand, how 
 |---|---|
 | App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3. The investigation loop, and the product shell: GitHub login, repo and issue pickers, ticket form with notes, env vars and a recording or screenshot, live run page with timeline, approval card with similar past fixes, approve and reject routes, pull request creation, dashboard with memory facets and shared-bug alerts. Builds, typechecks, lints clean; 13 unit tests pass (`npm test`). The ticket form starts warming the sandbox in the background (`POST /api/warm`); `npm run demo:record` records the web app through an investigation. |
 | Demo repo `boranfurkan/reproducer-hackathon-demo` | "Pagefold Books" with four bugs pushed: issues #1 to #4, tags `v0-buggy` (bug 1 only), `v1-all-bugs` (three) and `v2-four-bugs` (all four). Bug 4 (search lower-cases with the Turkish locale) is a cousin of bug 1 so the memory has something to recall. |
-| Investigation loop | Fixed all three bugs end to end in sandbox runs on 24 Oct: #1 (reporter env, locale), #2 (only the "storage blocked" stressor reproduces it), #3 (timezone). 3 to 5 minutes warm or cold, 80k to 100k tokens, one fix attempt each. |
+| Investigation loop | Fixed all four demo bugs end to end in clean sandbox runs on 24 Oct (#1 locale with a screen recording, #4 search with a memory recall of #1, #2 only the "storage blocked" stressor reproduces it, #3 timezone). About 4 to 5 minutes warm, 77k to 95k tokens, one fix attempt each; see DEMO-BUGS.md. The sandbox agent runs on Argon (D-26). |
 | Memory and search (MongoDB) | M10 cluster, six working indexes and collections. `bug_memory` with Automated Embedding (voyage-4 and voyage-code-4) and a lexical Atlas Search index, hybrid recall with `$rankFusion`, facets, a 10-device catalog with fuzzy Atlas Search. All verified with synthetic data; wired into the loop. |
 | Video and screenshots | Argon reads a recording through the Files API (tested standalone: 2 s upload, 8 s analysis). Upload route, form field and prompt are built and tested at the API level. |
 | Deployment | `output: "standalone"`, Dockerfile, `.dockerignore`, `docs/DEPLOY.md`. The standalone layout was started and tested by hand. `docker build` and a real host were not tried. |
@@ -112,6 +112,20 @@ Models: `gemini-4-argon` for all reasoning (Interactions API, `generation_config
 - **Atlas Stream Processing has no free tier**: billed while a processor runs. Start it only for the demo window.
 - **Next.js 16**: read `node_modules/next/dist/docs/` before writing Next code (the scaffold's `AGENTS.md` says so). Route handlers run at request time when they touch the database. Docker with `output: "standalone"` is supported.
 - **Tooling gotchas**: scripts run with `tsx` as CommonJS, so wrap code in an async `main()` (no top-level await). `octokit` is ESM-only, so import it dynamically (`await import("octokit")`). Do not name scripts `.mts` (ESM resolution then breaks extensionless imports).
+
+## Done while the owner was away (24 Oct evening): to review together
+
+Actions that wrote to external systems (all authorised by "do not wait for me to confirm things", but worth a look):
+- Pushed to `reproducer-hackathon-demo` `main`: bugs 2 and 3 (commit `5e35bc5`) and bug 4, the search (commit `9c8ec6b`); created issues #2, #3 and #4; created tags `v1-all-bugs` (three bugs) and `v2-four-bugs` (four). `v0-buggy` was created earlier.
+- Pushed several commits to `reproducer-hackathon` `main` (all authored as the owner, no attribution lines).
+- Used the owner's `gh` login in two ways: `gh issue create` for issues #2 to #4, and `gh auth token` passed as `GITHUB_TOKEN` for **read-only** GitHub API calls in test runs (reading issues and repository files; the unauthenticated limit of 60 requests per hour had been used up). Nothing was written to GitHub with that token. An attempt to open a real pull request with it was blocked by the auto-mode classifier and was not retried.
+- Gemini usage: about 15 investigation runs (70k to 110k tokens each), plus probes and tests. All within the modest range; none looped.
+- MongoDB: created the search indexes (`bug_memory_vector`, `bug_memory_code`, `bug_memory_search`, `environments_search`) and seeded the device catalog; test data was always deleted; real runs and their events and memory entries remain.
+- Gemini Files API: test uploads were deleted; recordings attached to real runs remain for 48 hours.
+
+Decisions made on the owner's behalf: a fourth demo bug (a cousin of bug 1, so memory has something to recall); the "only this issue's profiles must pass" rule (D-24); hand-written GitHub login (D-17); the sandbox agent stays on the default model unless the Argon experiment below says otherwise; deployment files and docs.
+
+Things found and fixed on the way (good stories for the pitch): a stale staging directory leaking one run's fix into the next (D-23); stressor profiles exposing other bugs in the repo (D-24); a Firefox stressor crashing the matrix (D-25); GitHub's unauthenticated quota stalling runs; sandbox environment files disappearing after 15 idle minutes; every sandbox call getting slower with the size of `/workspace` (D-12).
 
 ## Waiting for the owner
 

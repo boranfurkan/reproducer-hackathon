@@ -62,15 +62,20 @@ A deliberate cousin of bug 1, so that the memory has something to recall.
 - Demo use: run issue #1 first (its fix is stored in memory), then #4. The timeline should show "Seen something similar before: Category pages empty for some customers".
 - Tag `v2-four-bugs` marks the repo with all four bugs.
 
-## Results of the agent on these bugs (24 Oct, new key, cold then warm sandbox)
+## Results of the agent on these bugs (24 Oct evening, clean runs after the staging and required-profile fixes)
 
-| Issue | Reporter profile | What found it | Result |
-|---|---|---|---|
-| 1 Turkish i | tr-TR Android phone | reporter fails; resetting locale fixes | fixed (earlier runs: about 190 s warm) |
-| 2 blank page | iPhone in-app browser, en-GB | **reporter passes**; the stressor "storage blocked" fails with `The operation is insecure` | fixed in 302 s cold, about 100k tokens; try/catch around `localStorage` in `src/prefs.js` |
-| 3 wrong day | Windows laptop en-US; Argon chose a US timezone | reporter fails; resetting the timezone fixes | fixed in about 4 min warm, about 94k tokens; formats the plain date without the UTC shift |
+Warm sandbox, terminal runner, about 40 s boot, one fix attempt each, diffs contain only the fix and the test.
 
-Note: the diff recorded for run 3 (and likely run 1 of that batch) was contaminated by a stale staging directory (D-23, fixed afterwards); rerun them for clean results.
+| Issue | Reporter profile | What found it | Time | Tokens |
+|---|---|---|---|---|
+| 1 Turkish i (with a screen recording attached) | tr-TR Android phone (Z Flip from the catalog) | reporter fails; resetting the locale fixes it | 230 s | 95k |
+| 4 search, Turkish case | tr-TR Windows laptop 1536x864 (from the catalog) | reporter fails; resetting the locale fixes it; **memory recalled issue 1 first** | 266 s | 77k |
+| 2 blank page | iPhone in-app browser, en-GB | **reporter passes**; only the stressor "storage blocked" fails (`The operation is insecure`) | 5 min | 81k |
+| 3 wrong day | Windows laptop en-US; Argon chose a US timezone | reporter fails; resetting the timezone fixes it | 5 min | 85k |
+
+Other problems noticed and left alone: while fixing 1 and 4, the "storage blocked" profile also failed with `The operation is insecure` (that is bug 2). The agent reported it ("Other problems noticed") and did not touch `src/prefs.js`.
+
+Memory: runs 2, 3 and 4 each showed "Seen something similar before" with the earlier fixes. The hits are hints; for bug 2 the recalled category fix was only loosely related and Argon correctly ignored it.
 
 ## Before the demo
 

@@ -43,7 +43,7 @@ export class AntigravitySandbox implements Sandbox {
     const r = await withRetry(() =>
       gemini().interactions.create({
         agent: MODELS.sandboxAgent,
-        agent_config: { type: "antigravity" },
+        agent_config: { type: "antigravity", model: MODELS.sandboxAgentModel },
         stream: false,
         input:
           "Run exactly this bash command with no changes and no other commands. " +
