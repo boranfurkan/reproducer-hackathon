@@ -42,7 +42,7 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 | Atlas Search | Full-text search over tickets, root causes and diffs. Facets by device, browser and locale for a dashboard |
 | Hybrid Search | Combine text and vector results, then rerank, for the "seen this before?" step |
 | Atlas Stream Processing | Tickets arrive in `tickets`; a processor reads the change stream, groups them in time windows and writes cluster alerts ("six reports from iPhone Safari in ten minutes") |
-| Change streams | The live timeline subscribes to `run_events` |
+| Change streams | The run page subscribes to its run (`runs`, `run_events`, `pr_events`) through `GET /api/runs/[id]/stream` (server-sent events); no polling while it is connected |
 | Transactions | Approving a pull request, and every change to a pull request's state, write `runs`, `approvals` or `pr_events`, `run_events` and `bug_memory` together (`prtrack.ts`, the approve route) |
 
 ## Screenshots and video

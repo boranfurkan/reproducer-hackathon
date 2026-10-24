@@ -37,7 +37,7 @@ Shared: `Shell` (header, footer, the "log in first" screen), `Header`, `ui.tsx` 
 | `useSession()` | `SessionUser`, `null` (logged out), `undefined` while loading |
 | `useRepos()`, `useRuns()`, `useMemoryFacets()`, `useClusters()`, `useIssues(owner, name)` | the data, `null` or `[]` while loading |
 | `useWarmSandbox(owner, name)` | starts preparing the sandbox and returns `'warming'`, `'warm'` or `null`; polls every 4 s while warming |
-| `useRun(id)` | `{ run, events, similar, error, reload }`; refreshes itself every 2.5 s while running; `run.thinking` carries Argon's thought summary while a step is being thought through |
+| `useRun(id)` | `{ run, events, similar, error, reload }`; updates live from a change stream (`/api/runs/[id]/stream`), with a poll as the fallback; `run.thinking` carries Argon's thought summary while a step is being thought through |
 | `useNow(active)` | the time, refreshed every second while active (the live elapsed counter) |
 | `startRun`, `uploadMedia`, `approveRun`, `rejectRun`, `stopRun`, `logout` | actions; each throws an `Error` with a message that is safe to show |
 

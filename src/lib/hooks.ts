@@ -147,12 +147,34 @@ export function useRun(id: string): { run: RunView | null; events: TimelineEvent
     };
   }, [id, tick]);
 
+  // Live updates: a MongoDB change stream on the run, pushed as server-sent events (each message says "something changed", then the page
+  // reloads the run). The slow poll is only a safety net; if the stream drops, the page falls back to the fast poll until it is back.
   const running = run?.status === 'running';
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const source = new EventSource(`/api/runs/${id}/stream`);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    source.onopen = () => setLive(true);
+    source.onerror = () => setLive(false);
+    source.onmessage = () => {
+      if (timer) return; // coalesce a burst of changes into one reload
+      timer = setTimeout(() => {
+        timer = undefined;
+        reload();
+      }, 300);
+    };
+    return () => {
+      source.close();
+      if (timer) clearTimeout(timer);
+      setLive(false);
+    };
+  }, [id, reload]);
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(reload, 2500);
+    const t = setInterval(reload, live ? 20_000 : 2500);
     return () => clearInterval(t);
-  }, [running, reload]);
+  }, [running, live, reload]);
 
   return { run, events, similar, error, reload };
 }
