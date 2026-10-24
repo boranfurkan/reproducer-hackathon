@@ -2,17 +2,13 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import Shell from './Shell';
 import { ErrorNote } from './ui';
-import { ago, api, type IssueItem } from '@/lib/client';
+import { ago } from '@/lib/client';
+import { useIssues } from '@/lib/hooks';
 
 function Issues({ owner, name }: { owner: string; name: string }) {
-  const [issues, setIssues] = useState<IssueItem[] | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`).then((r) => setIssues(r.issues)).catch((e: Error) => setError(e.message));
-  }, [owner, name]);
+  const { issues, error } = useIssues(owner, name);
   return (
     <>
       <Link href="/" className="text-sm text-zinc-500 hover:underline">← Repositories</Link>

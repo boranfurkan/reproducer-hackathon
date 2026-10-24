@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Shell from './Shell';
 import { buttonClass, Card, ErrorNote } from './ui';
-import { api, ApiError, type IssueItem, type MediaItem } from '@/lib/client';
+import type { MediaItem } from '@/lib/client';
+import { startRun, uploadMedia, useIssues, useWarmSandbox } from '@/lib/hooks';
 
 const EXAMPLES = [
   'Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish, customer is in Istanbul',
@@ -15,39 +16,29 @@ const EXAMPLES = [
 
 function Form({ owner, name, number }: { owner: string; name: string; number: number }) {
   const router = useRouter();
-  const [issue, setIssue] = useState<IssueItem | null>(null);
+  const { issues, error: issuesError } = useIssues(owner, name);
+  const issue = issues?.find((i) => i.number === number) ?? null;
   const [notes, setNotes] = useState('');
   const [env, setEnv] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const error = formError || issuesError;
 
   // Get the sandbox ready while the form is being filled in (a cold start installs Playwright, about 2 minutes).
-  useEffect(() => {
-    api('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) }).catch(() => undefined);
-  }, [owner, name]);
-
-  useEffect(() => {
-    api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`)
-      .then((r) => setIssue(r.issues.find((i) => i.number === number) ?? null))
-      .catch((e: Error) => setError(e.message));
-  }, [owner, name, number]);
+  useWarmSandbox(owner, name);
 
   async function upload(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
     setUploading(true);
-    setError('');
+    setFormError('');
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetch('/api/uploads', { method: 'POST', body: form });
-      const json = (await res.json().catch(() => ({}))) as { media?: Omit<MediaItem, 'label'>; error?: string };
-      if (!res.ok || !json.media) throw new ApiError(json.error ?? 'Upload failed', res.status);
-      setMedia((m) => [...m, { ...json.media!, label: file.name }].slice(0, 3));
+      const item = await uploadMedia(file);
+      setMedia((m) => [...m, item].slice(0, 3));
     } catch (e) {
-      setError((e as Error).message);
+      setFormError((e as Error).message);
     } finally {
       setUploading(false);
     }
@@ -55,16 +46,11 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
 
   async function start() {
     setBusy(true);
-    setError('');
-    // One KEY=value per line. These go to the sandbox only and are never stored.
-    const envVars = Object.fromEntries(
-      env.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-    );
+    setFormError('');
     try {
-      const { runId } = await api<{ runId: string }>('/api/runs', { method: 'POST', body: JSON.stringify({ owner, name, issueNumber: number, notes, envVars, media: media.map((m) => ({ uri: m.uri, mimeType: m.mimeType, kind: m.kind, name: m.name })) }) });
-      router.push(`/runs/${runId}`);
+      router.push(`/runs/${await startRun({ owner, name, issueNumber: number, notes, envText: env, media })}`);
     } catch (e) {
-      setError((e as Error).message);
+      setFormError((e as Error).message);
       setBusy(false);
     }
   }

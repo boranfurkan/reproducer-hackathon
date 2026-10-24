@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { buttonClass } from './ui';
+import { logout as endSession } from '@/lib/hooks';
 import type { SessionUser } from '@/lib/client';
 
 export default function Header({ user }: { user: SessionUser | null }) {
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await endSession();
     // Reload: the session state lives in client components, and every page shows a login prompt when logged out.
     window.location.reload();
   }

@@ -59,7 +59,7 @@ No new features after this point.
 
 ## G5. Submit (Sunday morning)
 
-- [ ] README correct, setup instructions tested from a clean clone (README rewritten; the clean-clone test is not done)
+- [x] README correct, setup instructions tested from a clean clone (README rewritten; a clean clone passed install, typecheck, lint, tests and build on 24 Oct)
 - [ ] No secrets in either repo or in git history (full history scanned on 24 Oct evening: clean; scan again before submitting)
 - [ ] 3-minute demo video recorded
 - [ ] Submission text written per challenge (drafts in docs/SUBMISSION.md, brackets to resolve)

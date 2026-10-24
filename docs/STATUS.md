@@ -19,7 +19,7 @@ Nothing has been deployed. The pull request code has only run against a mock Git
 
 ### Verified vs not verified (24 Oct evening)
 
-Verified by the owner on 24 Oct evening: GitHub login in the browser, an investigation of issue #4 started from the UI, and **a real pull request opened on GitHub from the Approve button** (PR #5 on the demo repo: one commit by the owner, two files, full description; wording then improved, see D-28). Verified: memory recall with real entries across runs (issues 2, 3 and 4 each recalled earlier fixes); **the whole web path with real GitHub data** (a forged session carrying the owner's read-only token, no login screen, never approve): `/api/session`, `/api/repos` (the owner's real repositories), the issues route, `/api/warm`, `POST /api/runs`, polling `/api/runs/[id]`, the finished run page and the dashboard, issue #2 fixed in 6 min 23 s including about 2 minutes of waiting for the cold warm-up, 79k tokens, three similar past fixes shown on the approval card; `npm run dev` loads all pages without console errors; production build and the standalone layout; every route unauthenticated; the login redirect and state check; authenticated routes with a forged test session against MongoDB (ownership, event order, approval gating, token never exposed, tampered cookie, upload types, rate limit, stale runs); stressor validation; the harness locally; full sandbox runs on all three bugs; env vars in the sandbox; memory, device matching, facets and diff similarity with synthetic data; the PR description text (`buildPrBody`); UI screenshots at desktop and phone width.
+Verified by the owner on 24 Oct evening: GitHub login in the browser, an investigation of issue #4 started from the UI, and **a real pull request opened on GitHub from the Approve button** (PR #5 on the demo repo: one commit by the owner, two files, full description; wording then improved, see D-28). A clean clone (`npm ci`, typegen, typecheck, lint, 16 tests, build, standalone server) passes with no `.env.local`. Verified: memory recall with real entries across runs (issues 2, 3 and 4 each recalled earlier fixes); **the whole web path with real GitHub data** (a forged session carrying the owner's read-only token, no login screen, never approve): `/api/session`, `/api/repos` (the owner's real repositories), the issues route, `/api/warm`, `POST /api/runs`, polling `/api/runs/[id]`, the finished run page and the dashboard, issue #2 fixed in 6 min 23 s including about 2 minutes of waiting for the cold warm-up, 79k tokens, three similar past fixes shown on the approval card; `npm run dev` loads all pages without console errors; production build and the standalone layout; every route unauthenticated; the login redirect and state check; authenticated routes with a forged test session against MongoDB (ownership, event order, approval gating, token never exposed, tampered cookie, upload types, rate limit, stale runs); stressor validation; the harness locally; full sandbox runs on all three bugs; env vars in the sandbox; memory, device matching, facets and diff similarity with synthetic data; the PR description text (`buildPrBody`); UI screenshots at desktop and phone width.
 
 `openFixPullRequest` is verified against a local mock of the GitHub API (`src/lib/github.test.ts`): request order, content, base branch, one commit with `Fixes #N`, no merge, no delete.
 
@@ -32,6 +32,7 @@ npm run dev                       # the web app on http://localhost:3000 (log in
 npm ci && npx next typegen        # after a fresh clone or if node_modules/.next were deleted (typegen creates the LayoutProps types that tsc needs)
 npm run typecheck                 # tsc --noEmit
 npm test                          # unit tests (node:test via tsx)
+npm run ui:shots                  # 24 screenshots of every page (light/dark, desktop/phone) with fake data, into .ui-shots/
 GITHUB_TOKEN=... npm run demo:record -- 2 --notes "..."   # record the real web app through an investigation (see DEMO.md)
 npx eslint src scripts            # lint
 npm run db:setup                  # create collections and indexes (safe to repeat)
@@ -75,7 +76,8 @@ src/lib/
   harness/scripts.ts   scripts that run inside the sandbox (boot, matrix, test)
   sandbox/antigravity.ts   AntigravitySandbox (run, runWith, checksummed file writes)
 src/app/               pages and route handlers (see ARCHITECTURE.md for the route table)
-src/components/        Home, IssueList, TicketForm, RunPage, Shell, Header, ui atoms
+src/components/        Home, IssueList, TicketForm, RunPage, Shell, Header, ui atoms (presentation only)
+  hooks.ts             ALL data fetching and actions for the UI (useRun, useRepos, startRun, approveRun, ...): see docs/UI.md
 scripts/               investigate.ts (terminal runner), setup-db.ts
 skills/                third-party skills (reference material, not our code)
 docs/                  documentation

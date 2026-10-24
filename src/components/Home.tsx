@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Header from './Header';
 import { Badge, Card, ErrorNote } from './ui';
-import { useSession } from './useSession';
-import { ago, api, type ClusterAlert, type MemoryFacets, type RepoItem, type RunView } from '@/lib/client';
+import { useClusters, useMemoryFacets, useRepos, useRuns, useSession } from '@/lib/hooks';
+import { ago } from '@/lib/client';
 
 function Landing({ error }: { error: string | null }) {
   const steps = [
@@ -36,20 +36,12 @@ function Landing({ error }: { error: string | null }) {
 }
 
 function Dashboard() {
-  const [repos, setRepos] = useState<RepoItem[] | null>(null);
-  const [runs, setRuns] = useState<RunView[] | null>(null);
-  const [memory, setMemory] = useState<MemoryFacets | null>(null);
-  const [clusters, setClusters] = useState<ClusterAlert[]>([]);
-  const [error, setError] = useState('');
+  const { repos, error } = useRepos();
+  const runs = useRuns();
+  const memory = useMemoryFacets();
+  const clusters = useClusters();
   const [filter, setFilter] = useState('');
   const [showPrivate, setShowPrivate] = useState(false);
-
-  useEffect(() => {
-    api<{ repos: RepoItem[] }>('/api/repos').then((r) => setRepos(r.repos)).catch((e: Error) => setError(e.message));
-    api<{ runs: RunView[] }>('/api/runs').then((r) => setRuns(r.runs)).catch(() => setRuns([]));
-    api<MemoryFacets>('/api/memory').then(setMemory).catch(() => setMemory(null));
-    api<{ clusters: ClusterAlert[] }>('/api/clusters').then((r) => setClusters(r.clusters)).catch(() => setClusters([]));
-  }, []);
 
   // Public repositories first, most open issues first: the sandbox can only clone public repositories, and a long list of private names
   // does not belong on screen (or in a demo recording) unless asked for.

@@ -1,0 +1,184 @@
+'use client';
+
+// The data layer of the UI. Every page reads and writes through these hooks and functions and nothing else, so the look of the app can
+// be redesigned without touching any of this. The HTTP shapes live in `src/lib/client.ts` and are described in `docs/UI.md`.
+
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ApiError,
+  api,
+  type ClusterAlert,
+  type IssueItem,
+  type MediaItem,
+  type MemoryFacets,
+  type RepoItem,
+  type RunView,
+  type SessionUser,
+  type SimilarFix,
+  type TimelineEvent,
+} from './client';
+
+/** undefined while loading, null when logged out. */
+export function useSession(): SessionUser | null | undefined {
+  const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
+  useEffect(() => {
+    api<{ user: SessionUser | null }>('/api/session').then((r) => setUser(r.user)).catch(() => setUser(null));
+  }, []);
+  return user;
+}
+
+/** The signed-in user's repositories (public and private; the UI decides what to show). `repos` is null while loading. */
+export function useRepos(): { repos: RepoItem[] | null; error: string } {
+  const [repos, setRepos] = useState<RepoItem[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api<{ repos: RepoItem[] }>('/api/repos').then((r) => setRepos(r.repos)).catch((e: Error) => setError(e.message));
+  }, []);
+  return { repos, error };
+}
+
+/** The user's recent investigations, newest first. null while loading. */
+export function useRuns(): RunView[] | null {
+  const [runs, setRuns] = useState<RunView[] | null>(null);
+  useEffect(() => {
+    api<{ runs: RunView[] }>('/api/runs').then((r) => setRuns(r.runs)).catch(() => setRuns([]));
+  }, []);
+  return runs;
+}
+
+/** What the memory has learned (Atlas Search facets). null while loading or when unavailable. */
+export function useMemoryFacets(): MemoryFacets | null {
+  const [memory, setMemory] = useState<MemoryFacets | null>(null);
+  useEffect(() => {
+    api<MemoryFacets>('/api/memory').then(setMemory).catch(() => setMemory(null));
+  }, []);
+  return memory;
+}
+
+/** Shared-bug alerts from the Stream Processing job. Empty until it runs. */
+export function useClusters(): ClusterAlert[] {
+  const [clusters, setClusters] = useState<ClusterAlert[]>([]);
+  useEffect(() => {
+    api<{ clusters: ClusterAlert[] }>('/api/clusters').then((r) => setClusters(r.clusters)).catch(() => setClusters([]));
+  }, []);
+  return clusters;
+}
+
+/** Open issues of one repository. `issues` is null while loading. */
+export function useIssues(owner: string, name: string): { issues: IssueItem[] | null; error: string } {
+  const [issues, setIssues] = useState<IssueItem[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`).then((r) => setIssues(r.issues)).catch((e: Error) => setError(e.message));
+  }, [owner, name]);
+  return { issues, error };
+}
+
+/** Starts getting the sandbox ready (Playwright, the clone) while the developer fills in the ticket form. Call it once from the form. */
+export function useWarmSandbox(owner: string, name: string): void {
+  useEffect(() => {
+    api('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) }).catch(() => undefined);
+  }, [owner, name]);
+}
+
+/**
+ * One investigation: the run, its timeline in order, similar past fixes, and `reload`. It refreshes itself every 2.5 s while the run is
+ * still running. `run` is null while loading.
+ */
+export function useRun(id: string): { run: RunView | null; events: TimelineEvent[]; similar: SimilarFix[]; error: string; reload: () => void } {
+  const [run, setRun] = useState<RunView | null>(null);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [similar, setSimilar] = useState<SimilarFix[]>([]);
+  const [error, setError] = useState('');
+  // Bumping `tick` reloads the run: the poll timer and the approval buttons both do it.
+  const [tick, setTick] = useState(0);
+  const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    let alive = true;
+    api<{ run: RunView; events: TimelineEvent[]; similar: SimilarFix[] }>(`/api/runs/${id}`)
+      .then((r) => {
+        if (!alive) return;
+        setRun(r.run);
+        setEvents(r.events);
+        setSimilar(r.similar ?? []);
+      })
+      .catch((e: Error) => alive && setError(e.message));
+    return () => {
+      alive = false;
+    };
+  }, [id, tick]);
+
+  const running = run?.status === 'running';
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(reload, 2500);
+    return () => clearInterval(t);
+  }, [running, reload]);
+
+  return { run, events, similar, error, reload };
+}
+
+// ---- actions (each throws an Error with a message that is safe to show) ----
+
+/** Environment variables as typed by the user: one KEY=value per line, # comments allowed. They go to the sandbox only and are never stored. */
+export function parseEnvText(text: string): Record<string, string> {
+  return Object.fromEntries(
+    text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#') && l.includes('='))
+      .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
+  );
+}
+
+export interface StartRunInput {
+  owner: string;
+  name: string;
+  issueNumber: number;
+  /** What the developer knows about the reporter: device, browser, language, location. */
+  notes: string;
+  /** Raw text of the environment variables box. */
+  envText?: string;
+  media?: MediaItem[];
+}
+
+/** Starts an investigation and returns the run id (the run continues on the server). */
+export async function startRun(input: StartRunInput): Promise<string> {
+  const { runId } = await api<{ runId: string }>('/api/runs', {
+    method: 'POST',
+    body: JSON.stringify({
+      owner: input.owner,
+      name: input.name,
+      issueNumber: input.issueNumber,
+      notes: input.notes,
+      envVars: parseEnvText(input.envText ?? ''),
+      media: (input.media ?? []).map((m) => ({ uri: m.uri, mimeType: m.mimeType, kind: m.kind, name: m.name })),
+    }),
+  });
+  return runId;
+}
+
+/** Uploads a screen recording or screenshot (mp4, webm, mov, png, jpg, webp; up to 50 MB). */
+export async function uploadMedia(file: File): Promise<MediaItem> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/uploads', { method: 'POST', body: form });
+  const json = (await res.json().catch(() => ({}))) as { media?: Omit<MediaItem, 'label'>; error?: string };
+  if (!res.ok || !json.media) throw new ApiError(json.error ?? 'Upload failed', res.status);
+  return { ...json.media, label: file.name };
+}
+
+/** The approval gate: opens a branch and a pull request. Nothing is pushed to GitHub before this is called. */
+export async function approveRun(id: string): Promise<{ prUrl: string; number: number }> {
+  return api(`/api/runs/${id}/approve`, { method: 'POST' });
+}
+
+/** Records that the developer rejected the fix. Nothing is pushed. */
+export async function rejectRun(id: string): Promise<void> {
+  await api(`/api/runs/${id}/reject`, { method: 'POST' });
+}
+
+export async function logout(): Promise<void> {
+  await fetch('/api/auth/logout', { method: 'POST' });
+}

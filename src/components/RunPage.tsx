@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import Shell from './Shell';
 import { Badge, buttonClass, Card, ErrorNote } from './ui';
-import { api, type MatrixRow, type RunView, type SimilarFix, type TimelineEvent } from '@/lib/client';
+import type { MatrixRow, RunView, SimilarFix, TimelineEvent } from '@/lib/client';
+import { approveRun, rejectRun, useRun } from '@/lib/hooks';
 
 const LABELS: Record<string, string> = {
   understood: 'Read the report',
@@ -92,7 +93,8 @@ function Approval({ run, similar, onChange }: { run: RunView; similar: SimilarFi
     setBusy(kind);
     setError('');
     try {
-      await api(`/api/runs/${run._id}/${kind}`, { method: 'POST' });
+      if (kind === 'approve') await approveRun(run._id);
+      else await rejectRun(run._id);
       onChange();
     } catch (e) {
       setError((e as Error).message);
@@ -143,36 +145,8 @@ function Approval({ run, similar, onChange }: { run: RunView; similar: SimilarFi
 }
 
 function Run({ id }: { id: string }) {
-  const [run, setRun] = useState<RunView | null>(null);
-  const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [similar, setSimilar] = useState<SimilarFix[]>([]);
-  const [error, setError] = useState('');
-  // Bumping `tick` reloads the run: the poll timer and the approval buttons both do it.
-  const [tick, setTick] = useState(0);
-  const reload = useCallback(() => setTick((t) => t + 1), []);
-
-  useEffect(() => {
-    let alive = true;
-    api<{ run: RunView; events: TimelineEvent[]; similar: SimilarFix[] }>(`/api/runs/${id}`)
-      .then((r) => {
-        if (!alive) return;
-        setRun(r.run);
-        setEvents(r.events);
-        setSimilar(r.similar ?? []);
-      })
-      .catch((e: Error) => alive && setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [id, tick]);
-
+  const { run, events, similar, error, reload } = useRun(id);
   const running = run?.status === 'running';
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(reload, 2500);
-    return () => clearInterval(t);
-  }, [running, reload]);
-
   if (error && !run) return <ErrorNote message={error} />;
   if (!run) return <p className="text-sm text-zinc-500">Loading…</p>;
   const [owner, repo] = run.repo.split('/');

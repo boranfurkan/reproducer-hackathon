@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Header from './Header';
-import { useSession } from './useSession';
+import { useSession } from '@/lib/hooks';
 import { Card } from './ui';
 
 /** Page frame: header plus a "log in first" screen for pages that need a session. */

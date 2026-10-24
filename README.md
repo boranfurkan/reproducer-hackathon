@@ -79,5 +79,5 @@ Requirements and limits: the sandbox clones the repository over plain HTTPS, so 
 - [Status and handoff](docs/STATUS.md): current state, measured facts, next steps
 - [Architecture](docs/ARCHITECTURE.md) and [agent loop](docs/AGENT-LOOP.md)
 - [MongoDB design](docs/MONGODB.md) and [Stream Processing setup](docs/STREAM-PROCESSING.md)
-- [Decisions and open questions](docs/DECISIONS.md)
+- [UI contract](docs/UI.md) (for redesigning the interface) and [decisions and open questions](docs/DECISIONS.md)
 - [Submission drafts](docs/SUBMISSION.md), [checkpoints](docs/CHECKPOINTS.md), [demo script](docs/DEMO.md), [demo bugs](docs/DEMO-BUGS.md), [deploying](docs/DEPLOY.md)
