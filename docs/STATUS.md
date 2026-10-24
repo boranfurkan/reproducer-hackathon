@@ -172,3 +172,24 @@ See `docs/DECISIONS.md` (Q-02 to Q-06). In short: which model the sandbox agent 
 - `~/Desktop/reproducer-build-plan.md`: the first plan, superseded by `docs/`. Kept for history.
 - `~/Desktop/encode-london-hackathon-2026.md`: the challenge briefs (judging criteria, prizes, requirements).
 - Hackathon constraints: key must never reach GitHub (project keys get killed), no abuse of the API, account deleted the day after.
+
+## Planned additions (to use more of the platforms)
+
+Gemini 4 Argon supports function calling, Google Search grounding, URL context, code execution, file search, streaming, background mode and conversation state (`previous_interaction_id`). Explicit caching is not supported; implicit caching is automatic, so keep the stable part of a prompt first. Check the Argon model page before building each.
+
+| # | Platform | Addition | Effort |
+|---|---|---|---|
+| 1 | Gemini | Prompt order for implicit caching (repository digest first, attempt feedback last) | small |
+| 2 | Gemini | Stream Argon thought summaries into the timeline | medium |
+| 3 | MongoDB | Change streams on `run_events` for the live timeline (replaces polling) | medium |
+| 4 | MongoDB | Transaction on approve (`approvals`, `runs`, `bug_memory`) | small |
+| 5 | Gemini | Conversation state for fix retries | medium |
+| 6 | Gemini | Function calling plus Search grounding in the root-cause step | large |
+| 7 | MongoDB | Stream Processing running for the demo window (needs the user's Atlas access) | small, blocked |
+| 8 | MongoDB | `$jsonSchema` validation on `runs` and `bug_memory`; TTL index on old events | small |
+| 9 | MongoDB | Rerank hybrid recall results | small |
+| 10 | Gemini | Code execution and URL context | small |
+| 11 | MongoDB | Trends view (`$group`, `$setWindowFields`, `$lookup`); optionally Atlas Charts | medium |
+| 12 | Gemini | Image generation (`gemini-nano-banana-2.1`) for the comic panels | small, optional |
+
+Not suitable: online archive, data federation, Live API, batch API.

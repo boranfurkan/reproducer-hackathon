@@ -96,6 +96,8 @@ export interface RunView {
   isolatedRows?: string[];
   suggestions?: string[];
   stopRequested?: boolean;
+  /** Argon's thought summary for the step it is on, while it thinks. */
+  thinking?: { step: string; text: string } | null;
   prTitle?: string;
   fixFiles?: { path: string; content: string }[];
   prUrl?: string;

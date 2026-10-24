@@ -45,6 +45,8 @@ export interface RunDoc {
   attachments?: { kind: string; name: string }[];
   /** The per-run token cap, so the page can show "31k of 600k" while it runs. */
   tokenCap?: number;
+  /** Argon's thought summary for the step it is on, streamed while it thinks (cleared when the step ends). */
+  thinking?: { step: string; text: string; at: Date } | null;
   /** Set by the Stop button; the investigation checks it between steps. */
   stopRequested?: boolean;
   understandingSummary?: string;
@@ -168,9 +170,26 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
     }
   };
 
+  // The live thinking line: writes are throttled (a stream sends many small pieces), the last piece is always written.
+  let thinkTimer: ReturnType<typeof setTimeout> | null = null;
+  let latest: { step: string; text: string } | null = null;
+  const flushThinking = () => {
+    thinkTimer = null;
+    const t = latest;
+    pending.push(runs.updateOne({ _id: runId }, { $set: { thinking: t ? { step: t.step, text: redact(t.text.slice(-1200), secrets), at: new Date() } : null } }).catch(() => undefined));
+  };
+  const think = (step: string, text: string | null) => {
+    latest = text === null ? null : { step, text };
+    if (text === null) {
+      if (thinkTimer) clearTimeout(thinkTimer);
+      flushThinking();
+    } else if (!thinkTimer) thinkTimer = setTimeout(flushThinking, 700);
+  };
+
   const close = async (patch: Partial<RunDoc>) => {
+    if (thinkTimer) clearTimeout(thinkTimer);
     await Promise.all(pending);
-    await runs.updateOne({ _id: runId }, { $set: { ...patch, finishedAt: new Date() } });
+    await runs.updateOne({ _id: runId }, { $set: { ...patch, thinking: null, finishedAt: new Date() } });
   };
 
   const finishRun = (r: InvestigationResult) =>
@@ -202,6 +221,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
   return {
     runId,
     emit,
+    think,
     finish: async (r: InvestigationResult) => {
       await finishRun(r);
       // A verified fix goes into the memory. A failure to store it must not fail the run.

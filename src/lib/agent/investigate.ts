@@ -108,12 +108,22 @@ const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`
 export async function investigate(
   ticket: Ticket,
   emit: Emit,
-  opts: { environmentId?: string | null; githubToken?: string; envVars?: Record<string, string>; shouldStop?: () => Promise<boolean> } = {},
+  opts: {
+    environmentId?: string | null;
+    githubToken?: string;
+    envVars?: Record<string, string>;
+    shouldStop?: () => Promise<boolean>;
+    /** Argon's thought summary while a step is being thought through (null when the step is done): the live "thinking" line. */
+    onThinking?: (step: string, text: string | null) => void;
+  } = {},
 ): Promise<InvestigationResult> {
   const t0 = Date.now();
   const budget = new TokenBudget();
   const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null, opts.envVars ?? {});
   const events: InvestigationResult["events"] = [];
+  // Every Argon call streams its thought summary to the run page when the caller listens (docs: streaming, thinking).
+  const ask = <T>(step: string, o: Parameters<typeof askJson<T>>[0]) =>
+    askJson<T>(opts.onThinking ? { ...o, onThought: (text) => opts.onThinking?.(step, text) } : o).finally(() => opts.onThinking?.(step, null));
   const say: Emit = (type, summary, data) => {
     events.push({ atMs: Date.now() - t0, type, summary, ...(typeof data === "string" ? { detail: data.slice(-1500) } : {}) });
     emit(type, summary, data, { tokens: budget.used });
@@ -140,7 +150,7 @@ export async function investigate(
   // Known devices that match the developer's notes (Atlas Search over the catalog), so "Samsung Flip Z" gets realistic numbers.
   const knownDevices = await matchDevices(ticket.notes, 3);
   if (knownDevices.length) say("hypothesis", `Device catalog matches: ${knownDevices.map((d) => d.name).join(", ")}`, knownDevices);
-  const understandP = askJson<Understanding>({
+  const understandP = ask<Understanding>("Reading the report", {
     budget,
     system: SYSTEM,
     level: "medium",
@@ -179,7 +189,7 @@ export async function investigate(
     say("understood", understanding.summary, understanding);
     const reporter: EnvProfile = { ...understanding.profile, name: "reporter" };
     say("profile", `${reporter.engine}, ${reporter.locale}, ${reporter.timezoneId}, ${reporter.viewport.width}x${reporter.viewport.height}${reporter.hasTouch ? ", touch" : ""}`, reporter);
-    const plan = await askJson<ReplayPlan>({
+    const plan = await ask<ReplayPlan>("Planning the replay", {
       budget,
       system: SYSTEM,
       level: "medium",
@@ -228,7 +238,7 @@ export async function investigate(
     out.reason = "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.";
     // What would help next time: specific details the developer could add, written from this case.
     try {
-      const help = await askJson<{ missing: string[] }>({
+      const help = await ask<{ missing: string[] }>("Working out what would help", {
         budget,
         system: SYSTEM,
         level: "low",
@@ -301,7 +311,7 @@ export async function investigate(
   let feedback = "";
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
     if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
-    const p = await askJson<Proposal>({
+    const p = await ask<Proposal>("Finding the root cause and the fix", {
       budget,
       system: SYSTEM,
       level: "high",

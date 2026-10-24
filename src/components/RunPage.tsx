@@ -8,7 +8,7 @@ import ApprovalCard from './run/ApprovalCard';
 import Timeline from './run/Timeline';
 import { Busy, RunPageSkeleton } from './loaders';
 import Shell from './Shell';
-import { ErrorNote, Eyebrow, InlineCode, Panel, RunStatusChip, buttonClass } from './ui';
+import { ErrorNote, Eyebrow, InlineCode, Panel, PixelDots, RunStatusChip, buttonClass } from './ui';
 import { formatClock, formatDuration, kilo, type RunView, type TimelineEvent } from '@/lib/client';
 import { stopRun, useNow, useRun } from '@/lib/hooks';
 
@@ -40,6 +40,12 @@ function NowPanel({ run, events }: { run: RunView; events: TimelineEvent[] }) {
           <span className="text-[13px] text-subtle">{STEPS[at][1] === 'matrix' ? 'The same replay under several environments, in Chromium and WebKit.' : 'Each step appears on the timeline as soon as it is done.'}</span>
         </div>
       </div>
+      {run.thinking?.text && (
+        <div className="flex flex-col gap-1.5 rounded-md border border-cyan/25 bg-cyan/5 px-3 py-2.5" aria-live="off">
+          <span className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.08em] text-cyan"><PixelDots />ARGON IS THINKING · {run.thinking.step.toUpperCase()}</span>
+          <p className="max-h-32 overflow-hidden text-[13px] leading-snug text-muted [mask-image:linear-gradient(to_bottom,transparent,black_35%)]">{run.thinking.text.slice(-420)}</p>
+        </div>
+      )}
       <ol className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[13px]">
         {STEPS.map(([label, type], i) => {
           const done = seen.has(type);

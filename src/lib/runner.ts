@@ -46,6 +46,7 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
         environmentId: warm.environmentId,
         githubToken: input.token,
         envVars: input.envVars,
+        onThinking: record.think,
         // The Stop button sets a flag on the run; the investigation checks it between steps.
         shouldStop: async () => Boolean((await (await collection<RunDoc>("runs")).findOne({ _id: record.runId }, { projection: { stopRequested: 1 } }))?.stopRequested),
       });
