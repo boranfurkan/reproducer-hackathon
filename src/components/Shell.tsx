@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Header from './Header';
+import { PageLoader } from './loaders';
 import Mascot from './mascot/Mascot';
 import SiteFooter from './SiteFooter';
 import { Panel, buttonClass } from './ui';
@@ -16,7 +17,7 @@ export default function Shell({ children, maxWidth = 1120 }: { children: (user: 
       <Header user={user ?? null} />
       <main className="mx-auto w-full flex-1 px-4 pt-6 pb-16 sm:px-8 sm:pt-10" style={{ maxWidth }}>
         {user === undefined ? (
-          <p className="font-mono text-sm text-subtle">Loading…</p>
+          <PageLoader label="Checking your session" />
         ) : user ? (
           children(user)
         ) : (

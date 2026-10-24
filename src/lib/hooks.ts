@@ -46,9 +46,9 @@ export function useRuns(): RunView[] | null {
   return runs;
 }
 
-/** What the memory has learned (Atlas Search facets). null while loading or when unavailable. */
-export function useMemoryFacets(): MemoryFacets | null {
-  const [memory, setMemory] = useState<MemoryFacets | null>(null);
+/** What the memory has learned (Atlas Search facets). undefined while loading, null when unavailable. */
+export function useMemoryFacets(): MemoryFacets | null | undefined {
+  const [memory, setMemory] = useState<MemoryFacets | null | undefined>(undefined);
   useEffect(() => {
     api<MemoryFacets>('/api/memory').then(setMemory).catch(() => setMemory(null));
   }, []);

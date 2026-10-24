@@ -114,9 +114,26 @@ async function main() {
         await shot("6-run-running", `/runs/${seeded.running}`);
         await shot("7-run-could-not-reproduce", `/runs/${seeded.stopped}`);
         await ctx.close();
+
+        // Loading states: the data requests are held open, so the page shows its skeletons.
+        const waiting = await browser.newContext({ viewport, colorScheme: scheme });
+        await waiting.addCookies([cookie]);
+        await waiting.route(/\/api\/(repos|runs|memory|clusters)/, () => undefined); // never answered
+        const wait = async (name: string, url: string) => {
+          const page = await waiting.newPage();
+          await page.goto(base + url, { waitUntil: "domcontentloaded" });
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${out}/${scheme}-${device}-${name}.png`, fullPage: true });
+          await page.close();
+        };
+        await wait("8-dashboard-loading", "/");
+        await wait("9-issues-loading", "/repos/acme/shop");
+        await wait("10-ticket-loading", "/repos/acme/shop/issues/13");
+        await wait("11-run-loading", `/runs/${seeded.running}`);
+        await waiting.close();
       }
     }
-    console.log(`Screenshots saved in ${out}/ (desktop and phone, 7 pages each)`);
+    console.log(`Screenshots saved in ${out}/ (desktop and phone: 7 pages and 4 loading states each)`);
   } finally {
     await browser.close();
     await (await collection<RunEventDoc>("run_events")).deleteMany({ runId: { $in: seeded.ids } });

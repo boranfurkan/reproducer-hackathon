@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import Header from './Header';
+import { LearnedSkeleton, PageLoader, RepoRowsSkeleton, RunCardsSkeleton } from './loaders';
 import Mascot from './mascot/Mascot';
 import SiteFooter from './SiteFooter';
 import { ErrorNote, Eyebrow, Panel, RunStatusChip, buttonClass } from './ui';
@@ -115,8 +116,8 @@ function Dashboard() {
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories" aria-label="Filter repositories" className="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-foreground outline-0 placeholder:text-subtle" />
         </label>
         {error && <ErrorNote message={error} />}
+        {repos === null && !error && <RepoRowsSkeleton />}
         <ul className="flex flex-col gap-2">
-          {repos === null && !error && <li className="font-mono text-sm text-subtle">Loading repositories…</li>}
           {shown.map((r) => (
             <li key={r.fullName}>
               <Link href={`/repos/${r.owner}/${r.name}`} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
@@ -151,7 +152,7 @@ function Dashboard() {
 
         <section className="flex flex-col gap-2.5">
           <Eyebrow>Recent investigations</Eyebrow>
-          {runs === null && <p className="font-mono text-sm text-subtle">Loading…</p>}
+          {runs === null && <RunCardsSkeleton />}
           {runs?.length === 0 && (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-purple-700 px-4 py-6 text-center">
               <Mascot pose="idle" size={64} label="" />
@@ -170,6 +171,7 @@ function Dashboard() {
           ))}
         </section>
 
+        {memory === undefined && <LearnedSkeleton />}
         {memory && memory.total > 0 && <LearnedPanel memory={memory} />}
       </aside>
     </div>
@@ -183,7 +185,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       <Header user={user ?? null} />
       <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 pt-6 pb-16 sm:px-8 sm:pt-12">
-        {user === undefined ? <p className="font-mono text-sm text-subtle">Loading…</p> : user ? <Dashboard /> : <Landing error={loginError} />}
+        {user === undefined ? <PageLoader label="Checking your session" /> : user ? <Dashboard /> : <Landing error={loginError} />}
       </main>
       <SiteFooter />
     </div>

@@ -72,6 +72,11 @@ a {
   outline-offset: 2px;
 }
 
+/* ---------- Loading states: skeleton blocks pulse in whole steps, like everything else ---------- */
+.rp-skel { background: #1d1240; animation: rp-skel 1.2s steps(2, end) infinite; }
+@keyframes rp-skel { 0% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .rp-skel { animation: none; } }
+
 /* ---------- Loupe, the mascot (a 24x24 pixel grid; every animation moves whole pixels with steps()) ---------- */
 .rpm {
   display: inline-block;

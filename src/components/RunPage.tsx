@@ -6,6 +6,7 @@ import { useState } from 'react';
 import Mascot from './mascot/Mascot';
 import ApprovalCard from './run/ApprovalCard';
 import Timeline from './run/Timeline';
+import { Busy, RunPageSkeleton } from './loaders';
 import Shell from './Shell';
 import { ErrorNote, Eyebrow, InlineCode, Panel, RunStatusChip, buttonClass } from './ui';
 import { formatClock, formatDuration, kilo, type RunView, type TimelineEvent } from '@/lib/client';
@@ -91,7 +92,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
   const now = useNow(running);
 
   if (error && !run) return <ErrorNote message={error} />;
-  if (!run) return <p className="font-mono text-sm text-subtle">Loading…</p>;
+  if (!run) return <RunPageSkeleton />;
   const [owner, repo] = run.repo.split('/');
   const waiting = run.status === 'fixed' && !run.rejectedAt;
   const done = !running;
@@ -125,7 +126,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
           </span>
           {running && (
             <button onClick={stop} disabled={stopping || run.stopRequested} className={`${buttonClass('danger', 'sm')} ml-auto`}>
-              {stopping || run.stopRequested ? 'Stopping after this step…' : 'Stop run'}
+              {stopping || run.stopRequested ? <Busy>Stopping after this step</Busy> : 'Stop run'}
             </button>
           )}
         </div>

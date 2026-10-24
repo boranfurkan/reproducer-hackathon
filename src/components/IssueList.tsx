@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { IssueRowsSkeleton } from './loaders';
 import Mascot from './mascot/Mascot';
 import Shell from './Shell';
 import { ErrorNote } from './ui';
@@ -18,7 +19,7 @@ function Issues({ owner, name }: { owner: string; name: string }) {
         <p className="text-sm text-muted">Open issues. Pick the bug you cannot reproduce.</p>
       </div>
       {error && <ErrorNote message={error} />}
-      {issues === null && !error && <p className="font-mono text-sm text-subtle">Loading issues…</p>}
+      {issues === null && !error && <IssueRowsSkeleton />}
       {issues && issues.length > 0 && (
         <ul className="flex flex-col overflow-hidden rounded-lg border border-purple-800">
           {issues.map((i) => (

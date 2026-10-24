@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { Busy, ReportSkeleton } from './loaders';
 import Shell from './Shell';
 import { ErrorNote, Eyebrow, PixelDots, Panel, buttonClass } from './ui';
 import type { MediaItem } from '@/lib/client';
@@ -90,7 +91,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
               <a href={issue.url} target="_blank" rel="noreferrer" className="font-mono text-xs">Open on GitHub ↗</a>
             </>
           ) : error ? null : (
-            <p className="font-mono text-sm text-subtle">Loading…</p>
+            <ReportSkeleton />
           )}
         </Panel>
 
@@ -120,7 +121,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
               <span className="text-sm text-muted">
                 Drop a file or{' '}
                 <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading || media.length >= 3} className="text-purple-200 underline underline-offset-[3px] disabled:opacity-50">choose one</button>
-                {uploading && <span className="ml-2 font-mono text-xs text-cyan">uploading…</span>}
+                {uploading && <span className="ml-3 inline-flex items-center gap-2 font-mono text-xs text-cyan"><PixelDots />uploading</span>}
               </span>
               <span className="font-mono text-xs text-subtle">mp4 webm mov png jpg webp · 50 MB</span>
               <input ref={fileInput} type="file" accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp" className="sr-only" tabIndex={-1} onChange={(e) => { upload(e.target.files); e.target.value = ''; }} />
@@ -151,7 +152,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
 
           {error && <ErrorNote message={error} />}
           <div className="flex flex-wrap items-center gap-4 pt-1">
-            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? 'Starting…' : 'Investigate'}</button>
+            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : 'Investigate'}</button>
             <span className="max-w-[340px] text-[13px] text-subtle">A run takes a few minutes. Nothing is pushed to GitHub until you approve.</span>
           </div>
         </div>

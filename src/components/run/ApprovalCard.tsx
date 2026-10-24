@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Busy } from '../loaders';
 import Mascot from '../mascot/Mascot';
 import { matrixCounts } from './MatrixTable';
 import { Eyebrow, InlineCode, StatusChip, buttonClass } from '../ui';
@@ -149,9 +150,9 @@ export default function ApprovalCard({ run, similar, onChange }: { run: RunView;
         <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-2.5">
           <div className="flex flex-wrap gap-2.5">
             <button onClick={() => act('approve')} disabled={busy !== null} className={`${buttonClass('primary', 'lg')} max-w-[360px] flex-[1_1_auto] focus-visible:outline-hot`}>
-              {busy === 'approve' ? 'Opening pull request…' : 'Approve and open pull request'}
+              {busy === 'approve' ? <Busy>Opening pull request</Busy> : 'Approve and open pull request'}
             </button>
-            <button onClick={() => act('reject')} disabled={busy !== null} className={buttonClass('danger', 'lg')}>Reject</button>
+            <button onClick={() => act('reject')} disabled={busy !== null} className={buttonClass('danger', 'lg')}>{busy === 'reject' ? <Busy>Rejecting</Busy> : 'Reject'}</button>
           </div>
           {error && <p role="alert" className="text-[13px] text-fail">{error}</p>}
           <span className="font-mono text-xs text-muted [overflow-wrap:anywhere]">Opens a pull request on {owner}/{repoName} from a new branch (reproducer/issue-{run.issueNumber}-…).</span>

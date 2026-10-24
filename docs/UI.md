@@ -51,6 +51,10 @@ Helpers in `client.ts`: `initials`, `diffStats`, `splitDiff`, `formatDuration`, 
 - **Approval card**: `rootCause` (one sentence, `explanation` below it), `diff` (the test file is shown separately from `testContent`), `profile.notEmulated`, `similar`, `matrix` for the "N of M" chip, `otherProblems`.
 - **Could not reproduce**: `reason` and `suggestions` (details that would help, written by Argon from the case).
 
+## Loading states (`src/components/loaders.tsx`)
+
+Every wait has a shape that matches what is coming, so the page does not jump: `RepoRowsSkeleton`, `RunCardsSkeleton`, `LearnedSkeleton` (dashboard), `IssueRowsSkeleton`, `ReportSkeleton` (ticket form), `RunPageSkeleton` (header, timeline entries and side panel). A whole-page wait (checking the session, the Suspense fallback of every page) shows `PageLoader`: the mascot looking through its lens and three pixels. Buttons that wait show `Busy` (pixels and the verb: "Starting", "Opening pull request", "Rejecting", "Stopping after this step"). Skeleton blocks pulse in two whole steps (`.rp-skel`), not a smooth fade, and stop with reduced motion. Each region has `role="status"` and `aria-busy` for screen readers. Hooks distinguish loading from empty: `null` or `undefined` is loading, an empty array is empty.
+
 ## States every screen handles
 
 Logged out; loading; error; empty (no repositories, issues or runs); run status `running`, `fixed` (waiting for you, then PR opened or rejected), `not_reproduced`, `no_fix`, `stopped`, `failed`.
@@ -64,4 +68,4 @@ Logged out; loading; error; empty (no repositories, issues or runs); run status 
 
 ## Reviewing a change
 
-`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished, a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 14 screenshots (7 pages, desktop and phone) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.
+`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished, a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 22 screenshots (7 pages and 4 loading states, desktop and phone) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.
