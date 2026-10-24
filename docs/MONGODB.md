@@ -43,6 +43,7 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 | Hybrid Search | Combine text and vector results, then rerank, for the "seen this before?" step |
 | Atlas Stream Processing | Tickets arrive in `tickets`; a processor reads the change stream, groups them in time windows and writes cluster alerts ("six reports from iPhone Safari in ten minutes") |
 | Change streams | The run page subscribes to its run (`runs`, `run_events`, `pr_events`) through `GET /api/runs/[id]/stream` (server-sent events); no polling while it is connected |
+| Aggregation (`$group`) | `memory_counts` in "Ask the memory": counts of fixes by isolating variable, engine, locale, PR outcome or file |
 | Transactions | Approving a pull request, and every change to a pull request's state, write `runs`, `approvals` or `pr_events`, `run_events` and `bug_memory` together (`prtrack.ts`, the approve route) |
 
 ## Screenshots and video

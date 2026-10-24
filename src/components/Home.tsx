@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import AskMemory from './AskMemory';
 import Header from './Header';
 import { LearnedSkeleton, PageLoader, RepoRowsSkeleton, RunCardsSkeleton } from './loaders';
 import Mascot from './mascot/Mascot';
@@ -171,6 +172,7 @@ function Dashboard() {
           ))}
         </section>
 
+        <AskMemory />
         {memory === undefined && <LearnedSkeleton />}
         {memory && memory.total > 0 && <LearnedPanel memory={memory} />}
       </aside>

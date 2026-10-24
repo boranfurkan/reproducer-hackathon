@@ -239,6 +239,11 @@ export async function stopRun(id: string): Promise<void> {
   await api(`/api/runs/${id}/stop`, { method: 'POST' });
 }
 
+/** A question about the memory, answered by the model calling functions that read MongoDB. `calls` is what it looked at. */
+export async function askMemory(question: string): Promise<{ answer: string; calls: { tool: string; args: Record<string, unknown>; found: number }[]; tokens: number }> {
+  return api('/api/ask', { method: 'POST', body: JSON.stringify({ question }) });
+}
+
 /** Revising the pull request after review comments: `start` writes a verified revision (nothing is pushed), `push` commits it to the branch, `discard` drops it. */
 export async function reviseRun(id: string, action: 'start' | 'push' | 'discard'): Promise<void> {
   await api(`/api/runs/${id}/revision`, { method: 'POST', body: JSON.stringify({ action }) });
