@@ -215,3 +215,10 @@ export function splitDiff(diff: string): { path: string; text: string }[] {
 
 /** The test file the agent adds; it is shown in its own block, not in the change. */
 export const TEST_FILE = 'tests/repro.spec.js';
+
+/** What triage says about an issue in the list. */
+export interface TriageBadge {
+  environmentSpecific: boolean;
+  hint: string;
+  similar?: { title: string; issue: string; outcome?: string };
+}

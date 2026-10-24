@@ -16,6 +16,7 @@ import {
   type SessionUser,
   type SimilarFix,
   type TimelineEvent,
+  type TriageBadge,
 } from './client';
 
 /** undefined while loading, null when logged out. */
@@ -72,6 +73,17 @@ export function useIssues(owner: string, name: string): { issues: IssueItem[] | 
     api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`).then((r) => setIssues(r.issues)).catch((e: Error) => setError(e.message));
   }, [owner, name]);
   return { issues, error };
+}
+
+/** Badges for the issue list: which issues look environment-specific, and which look like a fix already in memory. Empty until the model has answered (it never blocks the list). */
+export function useTriage(owner: string, name: string): Record<number, TriageBadge> {
+  const [badges, setBadges] = useState<Record<number, TriageBadge>>({});
+  useEffect(() => {
+    api<{ triage: (TriageBadge & { number: number })[] }>(`/api/repos/${owner}/${name}/triage`)
+      .then((r) => setBadges(Object.fromEntries(r.triage.map((t) => [t.number, t]))))
+      .catch(() => setBadges({}));
+  }, [owner, name]);
+  return badges;
 }
 
 export type WarmState = 'warm' | 'warming' | 'cold' | null;

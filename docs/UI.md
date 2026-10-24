@@ -25,7 +25,7 @@ The design source (HTML components, mascot script and brief) was delivered as a 
 |---|---|---|
 | `/` | `Home` | Logged out: hero with the mascot, tagline, "Log in with GitHub", four step cards. Logged in: repository picker (public first, private behind a toggle), recent investigations, shared-bug alerts, "what it has learned". |
 | (dashboard box) | `AskMemory` | "Ask the memory": a question in plain words, the answer, and chips showing what the model looked up. Hook: `askMemory(question)`. |
-| `/repos/[owner]/[name]` | `IssueList` | Open issues in one bordered list, with an empty state. |
+| `/repos/[owner]/[name]` | `IssueList` | Open issues in one bordered list, with an empty state. Triage badges (hook `useTriage`) appear on each row a moment after the list: "likely environment-specific" and "looks like repo#N, fixed". |
 | `/repos/[owner]/[name]/issues/[number]` | `TicketForm` | The report, then: who hit the bug, optional recording or screenshot (drop or choose), optional environment variables ("sandbox only"), Investigate. Shows "Sandbox warming up" and then "Sandbox ready". `?notes=` pre-fills the notes (used by "Try again with more detail"). |
 | `/runs/[id]` | `RunPage` | Header with status, duration, tokens, attempts and a Stop button while running; the timeline (`run/Timeline.tsx`); a sticky side column: the approval card when a fix is waiting (`run/ApprovalCard.tsx`), the "now" panel while running, the could-not-reproduce panel when stopped; other problems noticed; the reporter's environment. On a narrow screen the approval card comes first. |
 

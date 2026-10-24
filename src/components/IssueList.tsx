@@ -7,10 +7,12 @@ import Mascot from './mascot/Mascot';
 import Shell from './Shell';
 import { ErrorNote } from './ui';
 import { ago } from '@/lib/client';
-import { useIssues } from '@/lib/hooks';
+import { useIssues, useTriage } from '@/lib/hooks';
 
 function Issues({ owner, name }: { owner: string; name: string }) {
   const { issues, error } = useIssues(owner, name);
+  // The model's read of each issue arrives a moment after the list; the list never waits for it.
+  const triage = useTriage(owner, name);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -30,6 +32,12 @@ function Issues({ owner, name }: { owner: string; name: string }) {
                   <span className="font-semibold">{i.title}</span>
                   <span className="line-clamp-2 text-sm text-muted">{i.body}</span>
                   <span className="font-mono text-xs text-subtle">{ago(i.createdAt)} · {i.comments} comment{i.comments === 1 ? '' : 's'}</span>
+                  {(triage[i.number]?.environmentSpecific || triage[i.number]?.similar) && (
+                    <span className="mt-0.5 flex flex-wrap gap-1.5 font-mono text-[11px] font-medium">
+                      {triage[i.number].environmentSpecific && <span className="rounded-sm bg-amber/12 px-2 py-0.5 text-amber">likely environment-specific{triage[i.number].hint ? ` · ${triage[i.number].hint}` : ''}</span>}
+                      {triage[i.number].similar && <span className="rounded-sm bg-pass/12 px-2 py-0.5 text-pass">looks like {triage[i.number].similar!.issue}, fixed{triage[i.number].similar!.outcome === 'merged' ? ' and merged' : ''}</span>}
+                    </span>
+                  )}
                 </span>
               </Link>
             </li>

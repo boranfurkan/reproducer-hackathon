@@ -162,6 +162,26 @@ export async function recallSimilar(queryText: string, limit = 3): Promise<Memor
   }
 }
 
+/**
+ * Past fixes that really look like a description: the semantic (voyage-4) cosine score, which unlike a fused rank is meaningful on its own.
+ * Measured on the demo memory: related bugs 0.78 to 0.85, unrelated ones 0.62 to 0.72, so 0.76 separates them.
+ */
+export async function similarBySymptom(text: string, limit = 3, minScore = 0.76): Promise<(MemoryHit & { similarity: number })[]> {
+  try {
+    const col = await collection<BugMemoryDoc>("bug_memory");
+    const docs = await col
+      .aggregate([{ $vectorSearch: { index: MEMORY_VECTOR_INDEX, path: "memoryText", query: text, numCandidates: 50, limit: limit + 1 } }, { $addFields: { similarity: { $meta: "vectorSearchScore" } } }])
+      .toArray();
+    return docs
+      .filter((d) => d.similarity >= minScore)
+      .slice(0, limit + 1)
+      .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, rootCause: d.rootCause, file: d.file, isolatedVariable: d.isolatedVariable, environment: d.environment, score: d.similarity, similarity: d.similarity, outcome: d.outcome }));
+  } catch (e) {
+    console.error("similarBySymptom failed:", (e as Error).message);
+    return [];
+  }
+}
+
 /** Past fixes whose diff looks like this one (voyage-code-4 embeddings). */
 export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string; outcome?: string }[]> {
   try {
