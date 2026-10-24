@@ -88,7 +88,7 @@ Models: `gemini-4-argon` for all reasoning (Interactions API, `generation_config
 
 G1 (vertical slice) is complete: verified on 24 Oct with a real run stored in MongoDB (run document plus 12 redacted events, warm run 189 s, about 67k tokens). Next:
 
-1. **Tag the buggy demo state** (`v0-buggy` on `reproducer-hackathon-demo`) so it can be reset after each run. Needs the owner's approval before pushing.
+1. **Reset point exists**: tag `v0-buggy` on `reproducer-hackathon-demo` marks commit `0f93f82` (bookshop with bug 1 only). Reset after a merged fix with `git reset --hard v0-buggy && git push --force origin main` (only on that repo, and only if `main` was changed). When bugs 2 and 3 are added, add a second tag for the full set (for example `v1-all-bugs`) and reset to that one. Do not merge fix PRs on the demo repo until then.
 2. **Product shell (G2)**: check Auth.js works with Next 16, then GitHub login, repo list, issue list, ticket form (notes, optional env vars, optional video), start-run route handler, live timeline (read `run_events`; change stream or polling), approval card, Octokit branch, commit and PR, `approvals` collection. The orchestrator must run in the long-lived server process, not a serverless function.
 3. **Demo repo**: write bug 2 (blocked storage) and bug 3 (timezone day boundary) with realistic issues. Bug designs are in DECISIONS D-08 and the original plan.
 4. **Mongo layers (G3)**: `tickets` and `bug_memory` writes, `autoEmbed` vector index (`voyage-4` for text, `voyage-code-4` for diffs), vector search, Atlas Search with facets, hybrid search with rerank in the "seen this before?" step, `environments` catalog, then Stream Processing last.

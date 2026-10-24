@@ -26,7 +26,7 @@ A warm run takes about 3 minutes (Argon about 20 s of it, sandbox about 165 s). 
 ## Preparation before going on stage
 
 - Warm the sandbox: run one investigation (the boot installs Playwright into `/opt`, about 2 minutes) and keep pinging the environment at least every 10 minutes, because `/opt` is wiped after 15 idle minutes. Pass the same environment id to the demo run.
-- Reset the demo repo to the buggy state (tag `v0-buggy`).
+- Reset the demo repo to the buggy state (tag `v0-buggy`, or the all-bugs tag once it exists). See STATUS.md.
 - Pre-warm one run so API paths are warm.
 - Start the Stream Processing processor only now, stop it after.
 - Have the recorded fallback run ready in a second tab.
