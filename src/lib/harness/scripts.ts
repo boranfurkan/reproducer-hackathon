@@ -92,6 +92,7 @@ async function runProfile(browser, p) {
 const MATRIX_SH = `#!/bin/bash
 # The sandbox presets NODE_OPTIONS=--require global-agent/bootstrap and a NODE_PATH for it: append, never replace.
 export NODE_PATH=/opt/pw/node_modules:$NODE_PATH PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
+bash /opt/harness/wait-deps.sh
 cd /opt/target
 npm run build >/opt/build.log 2>&1 || true
 PORT=3100 node server/index.js >/opt/server.log 2>&1 &
@@ -103,9 +104,21 @@ kill $SRV 2>/dev/null
 
 const TEST_SH = `#!/bin/bash
 export PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
+bash /opt/harness/wait-deps.sh
 cd /opt/target
 npx playwright test "$@" --reporter=line 2>&1 | tail -14
 exit \${PIPESTATUS[0]}
+`;
+
+// WebKit needs system libraries (an apt install, about 45 s); Chromium does not (measured: Chromium launches without them). So boot does not
+// wait for the libraries: it starts their installation in the background and returns when Chromium, the clone and the dependencies are ready
+// (about 30 s instead of 105 s). Anything that launches a browser calls wait-deps.sh first, which returns at once when they are installed.
+const WAIT_DEPS_SH = `#!/bin/bash
+for i in $(seq 1 120); do
+  [ -f /opt/.webkit-deps ] && exit 0
+  [ -f /opt/.webkit-deps-running ] || exit 0
+  sleep 1
+done
 `;
 
 const BOOT_SH = `#!/bin/bash
@@ -118,8 +131,13 @@ if [ ! -d /opt/pw/node_modules/playwright ] || [ "$(ls /opt/browsers 2>/dev/null
   mkdir -p /opt/pw && cd /opt/pw
   npm init -y >/dev/null 2>&1
   npm i playwright >/opt/pw-install.log 2>&1
-  npx playwright install --with-deps chromium webkit >>/opt/pw-install.log 2>&1
+  npx playwright install chromium webkit >>/opt/pw-install.log 2>&1
+  rm -f /opt/.webkit-deps
   echo PW_INSTALLED
+fi
+if [ ! -f /opt/.webkit-deps ] && [ ! -f /opt/.webkit-deps-running ]; then
+  touch /opt/.webkit-deps-running
+  nohup setsid bash -c 'cd /opt/pw && npx playwright install-deps chromium webkit >/opt/pw-deps.log 2>&1; touch /opt/.webkit-deps; rm -f /opt/.webkit-deps-running' >/dev/null 2>&1 &
 fi
 if [ -d /opt/target/.git ] && [ "$(git -C /opt/target remote get-url origin)" = "$URL" ]; then
   # Warm environment: reset to the latest commit and keep node_modules (ignored files survive git clean).
@@ -149,4 +167,5 @@ export const harnessFiles = (): SandboxFile[] => [
   { path: `${HARNESS_DIR}/matrix.sh`, content: MATRIX_SH },
   { path: `${HARNESS_DIR}/test.sh`, content: TEST_SH },
   { path: `${HARNESS_DIR}/boot.sh`, content: BOOT_SH },
+  { path: `${HARNESS_DIR}/wait-deps.sh`, content: WAIT_DEPS_SH },
 ];

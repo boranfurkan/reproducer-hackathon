@@ -96,6 +96,19 @@ export function useTriage(owner: string, name: string): Record<number, TriageBad
   return badges;
 }
 
+const prewarmed = new Set<string>();
+
+/**
+ * Starts getting the sandbox ready without waiting for it: called when the developer opens a repository (or hovers one), so by the time an
+ * issue is chosen and the form is filled in the sandbox is usually ready. Once per repository per page load; the server also ignores repeats.
+ */
+export function prewarm(owner: string, name: string): void {
+  const key = `${owner}/${name}`;
+  if (prewarmed.has(key)) return;
+  prewarmed.add(key);
+  api('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) }).catch(() => prewarmed.delete(key));
+}
+
 export type WarmState = 'warm' | 'warming' | 'cold' | null;
 
 /**

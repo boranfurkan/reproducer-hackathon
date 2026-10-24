@@ -9,7 +9,7 @@ import Mascot from './mascot/Mascot';
 import SiteFooter from './SiteFooter';
 import { ErrorNote, Eyebrow, Panel, RunStatusChip, buttonClass } from './ui';
 import { ago, type MemoryFacets } from '@/lib/client';
-import { useClusters, useMemoryFacets, useRepos, useRuns, useSession } from '@/lib/hooks';
+import { prewarm, useClusters, useMemoryFacets, useRepos, useRuns, useSession } from '@/lib/hooks';
 import type { Pose } from './mascot/pixels';
 
 const STEPS: { title: string; text: string; pose: Pose }[] = [
@@ -121,7 +121,7 @@ function Dashboard() {
         <ul className="flex flex-col gap-2">
           {shown.map((r) => (
             <li key={r.fullName}>
-              <Link href={`/repos/${r.owner}/${r.name}`} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
+              <Link href={`/repos/${r.owner}/${r.name}`} onMouseEnter={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} onFocus={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="font-mono text-sm font-semibold [overflow-wrap:anywhere]">{r.owner}/<span className="text-purple-200">{r.name}</span></span>
                   {r.description && <span className="text-sm text-muted">{r.description}</span>}

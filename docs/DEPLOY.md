@@ -17,7 +17,7 @@ ReProducer is a long-running Node server, not a set of serverless functions. An 
 | `MONGODB_URI` | Atlas connection string |
 | `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` | GitHub OAuth app |
 | `AUTH_SECRET` | key that encrypts the session cookie (changing it logs everyone out) |
-| `KEEP_SANDBOX_WARM` | `true` to ping the warm sandbox every 9 minutes (up to about 72 minutes) so the Playwright install survives; costs a few thousand tokens per ping |
+| `KEEP_SANDBOX_WARM` | on by default; `false` turns off the ping of the warm sandbox every 9 minutes (up to about 72 minutes) so the Playwright install survives; costs a few thousand tokens per ping |
 | `PORT` | set by most hosts; the image defaults to 8080 |
 
 ## Steps

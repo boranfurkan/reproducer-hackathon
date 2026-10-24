@@ -2,17 +2,20 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useEffect } from 'react';
 import { IssueRowsSkeleton } from './loaders';
 import Mascot from './mascot/Mascot';
 import Shell from './Shell';
 import { ErrorNote } from './ui';
 import { ago } from '@/lib/client';
-import { useIssues, useTriage } from '@/lib/hooks';
+import { prewarm, useIssues, useTriage } from '@/lib/hooks';
 
 function Issues({ owner, name }: { owner: string; name: string }) {
   const { issues, error } = useIssues(owner, name);
   // The model's read of each issue arrives a moment after the list; the list never waits for it.
   const triage = useTriage(owner, name);
+  // Opening the repository is the first sign of an investigation: start the sandbox now (it takes about a minute).
+  useEffect(() => prewarm(owner, name), [owner, name]);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">

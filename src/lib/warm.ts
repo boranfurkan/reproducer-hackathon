@@ -77,9 +77,9 @@ export function rememberWarm(id: string): void {
   scheduleKeepAlive();
 }
 
-/** Ping the warm environment before it idles out. Enabled by KEEP_SANDBOX_WARM=true. */
+/** Ping the warm environment before it idles out (about 9 minutes apart, at most 8 times: roughly 12k tokens each). On by default; KEEP_SANDBOX_WARM=false turns it off. */
 function scheduleKeepAlive(): void {
-  if (process.env.KEEP_SANDBOX_WARM !== "true") return;
+  if (process.env.KEEP_SANDBOX_WARM === "false") return;
   const s = state();
   if (s.timer) clearTimeout(s.timer);
   s.timer = setTimeout(async () => {
