@@ -4,7 +4,7 @@ import { HARNESS_DIR, TARGET_DIR, harnessFiles } from "../harness/scripts";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
-import { ablations, baselineProfile } from "./profiles";
+import { ablations, baselineProfile, stressorProfiles } from "./profiles";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import {
   type FileChange,
@@ -87,11 +87,11 @@ const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`
 export async function investigate(
   ticket: Ticket,
   emit: Emit,
-  opts: { environmentId?: string | null; githubToken?: string } = {},
+  opts: { environmentId?: string | null; githubToken?: string; envVars?: Record<string, string> } = {},
 ): Promise<InvestigationResult> {
   const t0 = Date.now();
   const budget = new TokenBudget();
-  const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null);
+  const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null, opts.envVars ?? {});
   const events: InvestigationResult["events"] = [];
   const say: Emit = (type, summary, data) => {
     events.push({ atMs: Date.now() - t0, type, summary, ...(typeof data === "string" ? { detail: data.slice(-1500) } : {}) });
@@ -119,7 +119,10 @@ export async function investigate(
       "Interpret the report and rebuild the reporter's environment as a profile. Fill in only what the report states or strongly implies; " +
       "use sensible concrete values for the rest (a Turkish Chrome user on an Android phone has locale tr-TR, timezone Europe/Istanbul, a phone-sized viewport with touch). " +
       'Name the profile "reporter". In notEmulated list what Playwright cannot reproduce about this device (real GPU, OEM browser build, real network...). ' +
-      "suspectedVariables: environment variables that could plausibly matter.",
+      "suspectedVariables: environment variables that could plausibly matter. " +
+      "stressors: up to 3 extra conditions that the report does NOT state but that could plausibly explain why only some users are affected " +
+      "(for example storage blocked in private or in-app browsers, a different timezone or locale, dark mode, reduced motion). " +
+      "Each is tried on top of the reporter's profile, so only use values that differ from it. Use IANA timezones and BCP 47 locales.",
   });
   const digestP = readRepoDigest(ticket.repo, opts.githubToken).then(formatDigest);
   const bootP = sandbox
@@ -146,7 +149,9 @@ export async function investigate(
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nInterpretation: ${understanding.summary}\nExpected: ${understanding.expected}\nActual: ${understanding.actual}\n\n` +
         "Write a replay plan for a headless browser that reaches the place where the bug shows and ends with assertions that describe the CORRECT behaviour, so the plan fails when the bug is present. " +
         "Actions: goto (url relative to the site root, hash routes allowed), click, fill, press, wait, expect_visible, expect_text, expect_count_min. " +
-        "Use selectors that exist in the source (prefer data-testid). Keep it short.",
+        "Use selectors that exist in the source (prefer data-testid). Keep it short. " +
+        "The same plan is replayed under many locales, timezones and devices, so every assertion must hold in ALL of them when the app is correct: " +
+        "never rely on words, month names or date formats of one language. expect_text accepts a regular expression written as /pattern/ (for example /\\b5\\b/ to check that a day number is 5); prefer that for dates, numbers and prices.",
     });
     say("hypothesis", `Replay plan: ${plan.steps.length} steps. Success means: ${plan.successCriterion}`, plan);
     return { understanding, reporter, plan, code };
@@ -155,34 +160,57 @@ export async function investigate(
   out.understanding = understanding;
   out.plan = plan;
 
-  // 2. Matrix: reporter, baseline, and the reporter with one variable reset at a time.
-  const profiles = [reporter, baselineProfile(reporter), ...ablations(reporter).map((a) => a.profile)].slice(0, LIMITS.maxProfilesPerRound);
+  // 2. Matrix: the reporter, a neutral baseline, the reporter with one variable reset at a time (is the cause something it already has?),
+  //    and the reporter with one extra condition added (is the cause something the report never mentioned?).
+  const stress = stressorProfiles(reporter, understanding.stressors ?? [], 3);
+  const stressText = (understanding.stressors ?? []).map((x) => `${x.name} (${x.why})`).join("; ");
+  if (stress.length) say("hypothesis", `Extra conditions to try on top of the reporter's profile: ${stressText}`, understanding.stressors);
+  const profiles = [reporter, baselineProfile(reporter), ...ablations(reporter).map((a) => a.profile).slice(0, 4), ...stress].slice(0, LIMITS.maxProfilesPerRound);
+  const byName = new Map(profiles.map((pr) => [pr.name, pr]));
   const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles }) };
   const r1 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix");
   const m1 = parseMatrix(between(r1.stdout, "@@RESULT@@", "@@END@@"), r1);
   out.matrix = m1;
   say("matrix", `Matrix round 1 (${m1.length} profiles)\n${formatMatrix(m1)}`, m1);
 
+  // The profile that reproduces the bug: the reporter's own, or the reporter plus one extra condition.
   const rep = m1.find((r) => r.name === "reporter");
-  if (!rep || rep.ok) {
+  const triggered = m1.filter((r) => r.name.startsWith("add-") && !r.ok);
+  const focusRow = rep && !rep.ok ? rep : triggered[0];
+  if (!focusRow) {
     out.status = "not_reproduced";
-    out.reason = "The replay passes under the reporter's profile, so the bug did not reproduce.";
+    out.reason = "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.";
     say("stopped", out.reason);
     return finish();
   }
-  const decisive = m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""));
+  const focus = byName.get(focusRow.name) ?? reporter;
+  const decisive =
+    focusRow.name === "reporter"
+      ? m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""))
+      : [`${focusRow.name.replace("add-", "")} (added to the reporter's profile)`];
   out.decisiveVariables = decisive;
-  say("hypothesis", decisive.length ? `Resetting ${decisive.join(", ")} makes the bug disappear` : "No single variable explains it", decisive);
+  say(
+    "hypothesis",
+    focusRow.name === "reporter"
+      ? decisive.length ? `Resetting ${decisive.join(", ")} makes the bug disappear` : "No single variable explains it"
+      : `The reporter's profile passes, but adding ${decisive[0]} reproduces the bug`,
+    decisive,
+  );
 
   // 3. Root cause + failing test + fix in one model call, verified in one sandbox call. Retry with the output on failure.
   const describeOpts = {
-    locale: reporter.locale,
-    timezoneId: reporter.timezoneId,
-    viewport: reporter.viewport,
-    deviceScaleFactor: reporter.deviceScaleFactor,
-    hasTouch: reporter.hasTouch,
-    ...(reporter.engine !== "firefox" ? { isMobile: reporter.isMobile } : {}),
+    locale: focus.locale,
+    timezoneId: focus.timezoneId,
+    viewport: focus.viewport,
+    deviceScaleFactor: focus.deviceScaleFactor,
+    hasTouch: focus.hasTouch,
+    ...(focus.engine !== "firefox" ? { isMobile: focus.isMobile } : {}),
+    ...(focus.colorScheme ? { colorScheme: focus.colorScheme } : {}),
+    ...(focus.reducedMotion ? { reducedMotion: "reduce" } : {}),
   };
+  const storageSnippet =
+    "test.beforeEach(async ({ context }) => { await context.addInitScript(() => { const t = () => { throw new DOMException('The operation is insecure.', 'SecurityError'); }; " +
+    "Object.defineProperty(window, 'localStorage', { get: t }); Object.defineProperty(window, 'sessionStorage', { get: t }); }); });";
   let feedback = "";
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
     const p = await askJson<Proposal>({
@@ -192,15 +220,16 @@ export async function investigate(
       schema: proposalSchema,
       prompt:
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
-        `Variables that make the bug disappear when reset to a neutral value: ${decisive.join(", ") || "none"}.\n\n` +
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.\n\n` +
         "Do three things.\n" +
         "1. Find the root cause: the file, and exactly why only this environment is affected.\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +
         `It has two tests. Test 1 is inside test.describe with test.use(${JSON.stringify(describeOpts)}) and follows the replay steps and asserts the CORRECT behaviour, so it FAILS while the bug exists. ` +
         "Test 2 is the same test in a second describe with default options, which PASSES today. " +
-        (reporter.engine !== "chromium"
-          ? `Put test.use({ browserName: "${reporter.engine}" }) once at the top level of the file, outside every describe: Playwright rejects browserName inside a describe. `
+        (focus.engine !== "chromium"
+          ? `Put test.use({ browserName: "${focus.engine}" }) once at the top level of the file, outside every describe: Playwright rejects browserName inside a describe. `
           : "Do not set browserName (the default is already chromium). ") +
+        (focus.storageBlocked ? `Storage is blocked in the failing environment: inside the failing describe, include exactly this hook so localStorage and sessionStorage throw like they do there: ${storageSnippet} ` : "") +
         "Use stable selectors from the source. Check each route: this app uses hash routes, so goto paths look like \"/#/category/fiction\".\n" +
         "3. Fix the bug with the smallest change that keeps behaviour for other users. Return only the files you change (path relative to the repo root, full new content). Do not edit the test." +
         (feedback ? `\n\nYour previous attempt failed verification:\n${feedback}\nCorrect it.` : ""),

@@ -10,7 +10,7 @@ export const MODELS = {
 export const LIMITS = {
   maxMatrixRounds: 4,
   maxFixAttempts: 3,
-  maxProfilesPerRound: 6,
+  maxProfilesPerRound: 9,
   maxTokensPerRun: 600_000,
   retryAttempts: 4,
 } as const;

@@ -19,13 +19,49 @@ export const envProfileSchema = {
     userAgent: { type: "string" },
     colorScheme: { type: "string", enum: ["light", "dark"] },
     storageBlocked: { type: "boolean" },
+    reducedMotion: { type: "boolean" },
     notEmulated: { type: "array", items: { type: "string" } },
   },
   required: ["name", "engine", "locale", "timezoneId", "viewport", "deviceScaleFactor", "isMobile", "hasTouch", "notEmulated"],
 };
 
+/** An extra condition, not stated in the report, applied on top of the reporter's profile to see if it triggers the bug. */
+export interface Stressor {
+  name: string;
+  why: string;
+  override: {
+    engine?: string;
+    locale?: string;
+    timezoneId?: string;
+    colorScheme?: string;
+    storageBlocked?: boolean;
+    reducedMotion?: boolean;
+  };
+}
+
+export const stressorSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    why: { type: "string" },
+    override: {
+      type: "object",
+      properties: {
+        engine: { type: "string", enum: ["chromium", "webkit", "firefox"] },
+        locale: { type: "string" },
+        timezoneId: { type: "string" },
+        colorScheme: { type: "string", enum: ["light", "dark"] },
+        storageBlocked: { type: "boolean" },
+        reducedMotion: { type: "boolean" },
+      },
+    },
+  },
+  required: ["name", "why", "override"],
+};
+
 export interface Understanding {
   summary: string;
+  stressors: Stressor[];
   expected: string;
   actual: string;
   suspectedVariables: string[];
@@ -39,9 +75,10 @@ export const understandingSchema = {
     expected: { type: "string" },
     actual: { type: "string" },
     suspectedVariables: { type: "array", items: { type: "string" } },
+    stressors: { type: "array", items: stressorSchema },
     profile: envProfileSchema,
   },
-  required: ["summary", "expected", "actual", "suspectedVariables", "profile"],
+  required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "profile"],
 };
 
 export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_text" | "expect_count_min";

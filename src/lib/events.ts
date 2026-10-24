@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import type { Emit, InvestigationResult, Ticket } from "./agent/investigate";
 import { collection } from "./mongo";
 import { redact, redactDeep } from "./redact";
-import type { RunEventType } from "./types";
+import type { EnvProfile, RunEventType } from "./types";
 
 export interface RunDoc {
   _id: ObjectId;
@@ -20,7 +20,31 @@ export interface RunDoc {
   decisiveVariables?: string[];
   rootCause?: { rootCause: string; file: string; explanation: string };
   diff?: string;
+  /** Who started the run (GitHub login). */
+  userLogin?: string;
+  issueUrl?: string;
+  /** The reporter's environment profile and the final matrix, for the approval card and the PR text. */
+  profile?: EnvProfile;
+  matrix?: { name: string; ok: boolean; failure: string | null }[];
+  understandingSummary?: string;
+  /** What the pull request will contain. */
+  testContent?: string;
+  fixFiles?: { path: string; content: string }[];
+  prUrl?: string;
+  prNumber?: number;
+  prBranch?: string;
+  approvedAt?: Date;
+  rejectedAt?: Date;
   sandboxCalls?: { label: string; ms: number; tokens: number }[];
+}
+
+/** Written when a developer approves a pull request. */
+export interface ApprovalDoc {
+  runId: ObjectId;
+  login: string;
+  at: Date;
+  prUrl: string;
+  branch: string;
 }
 
 export interface RunEventDoc {
@@ -48,7 +72,7 @@ function clip(data: unknown, secrets: string[]): unknown {
  * Creates the run document and returns an `emit` that stores every event in `run_events` (redacted),
  * plus `finish`/`fail` to close the run. Event writes never throw into the investigation: a failed write is logged.
  */
-export async function startRun(ticket: Ticket, secrets: string[] = []) {
+export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { userLogin?: string; issueUrl?: string } = {}) {
   const runs = await collection<RunDoc>("runs");
   const events = await collection<RunEventDoc>("run_events");
   const t0 = Date.now();
@@ -61,6 +85,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = []) {
     notes: redact(ticket.notes, secrets),
     status: "running",
     createdAt: new Date(),
+    ...meta,
   });
 
   const pending: Promise<unknown>[] = [];
@@ -97,6 +122,11 @@ export async function startRun(ticket: Ticket, secrets: string[] = []) {
             decisiveVariables: r.decisiveVariables,
             rootCause: r.rootCause,
             diff: r.diff,
+            profile: r.understanding?.profile,
+            matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
+            understandingSummary: r.understanding?.summary,
+            testContent: r.testContent,
+            fixFiles: r.fixFiles,
             sandboxCalls: r.sandboxCalls,
           },
           secrets,

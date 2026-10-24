@@ -24,6 +24,19 @@ Long model calls use `background=True` on the Interactions API, so the orchestra
 
 ## Components
 
+### Routes (`src/app/api`)
+
+| Route | Purpose |
+|---|---|
+| `GET /api/auth/login`, `GET /api/auth/callback/github`, `POST /api/auth/logout`, `GET /api/session` | GitHub OAuth and the encrypted session |
+| `GET /api/repos`, `GET /api/repos/[owner]/[name]/issues` | the user's repositories and a repo's open issues |
+| `POST /api/runs`, `GET /api/runs` | start an investigation (returns 202 with the run id; it continues in the background of the server process), list the user's recent runs |
+| `GET /api/runs/[id]` | the run and its events in order (the page polls this) |
+| `POST /api/runs/[id]/approve` | the approval gate: claims the run, opens the pull request, writes `approvals` and a `pr_opened` event |
+| `POST /api/runs/[id]/reject` | records a rejection; nothing is pushed |
+
+Every run route checks that the run belongs to the signed-in user. Pages: `/`, `/repos/[owner]/[name]`, `/repos/[owner]/[name]/issues/[number]`, `/runs/[id]`.
+
 ### UI
 - Login, repo list, issue list, ticket form (free-text environment notes, optional video or screenshot, optional env vars).
 - Live timeline fed by the `run_events` collection.

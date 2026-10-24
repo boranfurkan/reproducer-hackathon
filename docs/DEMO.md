@@ -19,6 +19,10 @@ A developer who gets a client ticket like "category pages are empty for some cus
 | 2:20 | MongoDB: "seen this before" hit on a second bug, search facets by device, a cluster alert from Stream Processing. |
 | 2:45 | One-line close. |
 
+## Format (confirmed by another participant, not by the organisers)
+
+The demo does not have to be live: a screen recording, sped up, is acceptable. Teams in the top 10 pitch live in front of the audience, expected around 3 pm on Sunday 25 October (after submission closes at 12:00). So the 3-minute limit no longer constrains the design: record a full run, speed up the waiting parts, and keep the pitch itself live and short. Ask the organisers to confirm the schedule.
+
 ## Timing
 
 A warm run takes about 3 minutes (Argon about 20 s of it, sandbox about 165 s). The demo narrates while it runs; time-sensitive parts are pre-recorded and said so.

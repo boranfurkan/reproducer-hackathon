@@ -1,4 +1,5 @@
-import type { EnvProfile } from "../types";
+import type { Engine, EnvProfile } from "../types";
+import type { Stressor } from "./schemas";
 
 /** Neutral desktop profile. Resetting one field of the reporter's profile to this value tests that variable. */
 export const BASELINE: Omit<EnvProfile, "name" | "notEmulated"> = {
@@ -59,4 +60,49 @@ export function ablations(reporter: EnvProfile): Ablation[] {
 
 export function baselineProfile(reporter: EnvProfile): EnvProfile {
   return { ...BASELINE, name: "baseline", notEmulated: reporter.notEmulated };
+}
+
+const ENGINES: Engine[] = ["chromium", "webkit", "firefox"];
+
+function validTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validLocale(tag: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(tag).length === 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The reporter's profile with one extra condition added, for each stressor the model proposed.
+ * Model output is validated: unknown fields are dropped, invalid locales and timezones are skipped.
+ * A stressor that changes nothing (the reporter already has that value) is skipped too.
+ */
+export function stressorProfiles(reporter: EnvProfile, stressors: Stressor[], max = 3): EnvProfile[] {
+  const out: EnvProfile[] = [];
+  for (const st of stressors) {
+    if (out.length >= max) break;
+    const o = st.override ?? {};
+    const p: EnvProfile = { ...reporter };
+    let changed = false;
+    if (o.engine && ENGINES.includes(o.engine as Engine) && o.engine !== p.engine) { p.engine = o.engine as Engine; changed = true; }
+    if (o.locale && validLocale(o.locale) && o.locale !== p.locale) { p.locale = o.locale; changed = true; }
+    if (o.timezoneId && validTimezone(o.timezoneId) && o.timezoneId !== p.timezoneId) { p.timezoneId = o.timezoneId; changed = true; }
+    if ((o.colorScheme === "dark" || o.colorScheme === "light") && o.colorScheme !== (p.colorScheme ?? "light")) { p.colorScheme = o.colorScheme; changed = true; }
+    if (typeof o.storageBlocked === "boolean" && o.storageBlocked !== !!p.storageBlocked) { p.storageBlocked = o.storageBlocked; changed = true; }
+    if (typeof o.reducedMotion === "boolean" && o.reducedMotion !== !!p.reducedMotion) { p.reducedMotion = o.reducedMotion; changed = true; }
+    if (!changed) continue;
+    const slug = st.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28) || `stress-${out.length + 1}`;
+    p.name = `add-${slug}`;
+    out.push(p);
+  }
+  return out;
 }

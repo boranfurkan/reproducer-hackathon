@@ -26,6 +26,7 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 - `src/lib/mongo.ts`: one shared client (stored on `globalThis`, pool of 10, 10 s server selection timeout).
 - `src/lib/events.ts`: `startRun()` writes a `runs` document and returns `emit` (writes redacted `run_events`, payloads over 8,000 characters are truncated), `finish` and `fail`. A failed event write is logged and never stops the investigation.
 - `src/lib/redact.ts`: removes Google keys, GitHub tokens, connection strings, bearer tokens and any exact secret values the caller passes in. Verified with a synthetic test: nothing leaked into `runs` or `run_events`.
+- The `runs` document also carries what the approval step needs: `userLogin`, `issueUrl`, `profile`, final `matrix`, `understandingSummary`, `testContent`, `fixFiles`, `diff`, and after approval `prUrl`, `prNumber`, `prBranch`, `approvedAt` (or `rejectedAt`). `approvals` gets one document per opened pull request.
 - Not built yet: `tickets`, `bug_memory`, `environments` writes, every Search and Vector index, Stream Processing.
 
 ## Feature map

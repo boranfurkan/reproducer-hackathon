@@ -32,11 +32,11 @@ If this is not green by midday, stop adding features until it is.
 
 ## G2. Product shell (Saturday afternoon)
 
-- [ ] GitHub login, repo list, issue list
-- [ ] Ticket form with notes, optional env vars
-- [ ] Live timeline from events
-- [ ] Approval card, branch, commit, PR opens against the demo repo
-- [ ] Bugs 2 and 3 added to the demo repo with issues, both fixed end to end
+- [x] GitHub login (hand-written OAuth, code complete; the full browser login has not been exercised yet), repo list, issue list
+- [x] Ticket form with notes, optional env vars (env vars: see D-19)
+- [x] Live timeline from events (polls every 2.5 s)
+- [x] Approval card, approve and reject routes, PR creation code. **Not yet exercised against GitHub** (needs the owner's login; opening a real PR needs approval)
+- [ ] Bugs 2 and 3: written and verified locally in the demo repo (see DEMO-BUGS.md); **not pushed, issues not created, agent not yet run on them**
 
 ## G3. Inputs and memory (Saturday evening)
 

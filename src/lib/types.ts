@@ -15,6 +15,7 @@ export interface EnvProfile {
   userAgent?: string;
   colorScheme?: "light" | "dark";
   storageBlocked?: boolean;
+  reducedMotion?: boolean;
   /** What we could not emulate (GPU, OEM keyboard, real hinge...). Shown in the fidelity report. */
   notEmulated: string[];
 }

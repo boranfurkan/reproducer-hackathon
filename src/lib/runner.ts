@@ -1,0 +1,55 @@
+import { investigate, type Ticket } from "./agent/investigate";
+import { startRun } from "./events";
+import { getIssue } from "./github";
+import { acquireWarm } from "./warm";
+
+export interface StartInvestigationInput {
+  token: string;
+  login: string;
+  owner: string;
+  name: string;
+  issueNumber: number;
+  notes: string;
+  /** Variables the app under investigation needs. Sandbox only: redacted everywhere, never stored. */
+  envVars?: Record<string, string>;
+}
+
+/**
+ * Create the run, then investigate in the background of this long-running server process. Returns the run id at once.
+ * (This must not run in a serverless function: an investigation takes minutes.)
+ */
+export async function startInvestigation(input: StartInvestigationInput): Promise<string> {
+  const issue = await getIssue(input.token, input.owner, input.name, input.issueNumber);
+  const ticket: Ticket = {
+    repo: { owner: input.owner, name: input.name },
+    issueNumber: issue.number,
+    title: issue.title,
+    body: issue.body,
+    notes: input.notes,
+  };
+  const secrets = Object.values(input.envVars ?? {});
+  const record = await startRun(ticket, secrets, { userLogin: input.login, issueUrl: issue.url });
+  // Env vars are fixed when a sandbox environment is created (later values are ignored) and would linger in a reused one.
+  // So a run with env vars gets its own fresh environment, which is never remembered for reuse. Slower (cold install), but correct and private.
+  const hasEnvVars = secrets.length > 0;
+  const warm = hasEnvVars ? { environmentId: null, release: () => undefined } : acquireWarm();
+
+  void (async () => {
+    let environmentId: string | null = warm.environmentId;
+    try {
+      const result = await investigate(ticket, record.emit, {
+        environmentId: warm.environmentId,
+        githubToken: input.token,
+        envVars: input.envVars,
+      });
+      environmentId = result.environmentId;
+      await record.finish(result);
+    } catch (e) {
+      await record.fail(e);
+    } finally {
+      warm.release(environmentId);
+    }
+  })();
+
+  return record.runId.toString();
+}

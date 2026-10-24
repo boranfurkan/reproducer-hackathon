@@ -16,7 +16,10 @@ async function runStep(page, s) {
     case "press": return page.keyboard.press(s.key);
     case "wait": return page.waitForTimeout(Math.min(s.ms || 500, 3000));
     case "expect_visible": return page.locator(s.selector).first().waitFor({ state: "visible", timeout: T });
-    case "expect_text": return page.locator(s.selector || "body").filter({ hasText: s.text }).first().waitFor({ state: "visible", timeout: T });
+    case "expect_text": {
+      const rx = /^\/(.*)\/([a-z]*)$/.exec(s.text || "");
+      return page.locator(s.selector || "body").filter({ hasText: rx ? new RegExp(rx[1], rx[2]) : s.text }).first().waitFor({ state: "visible", timeout: T });
+    }
     case "expect_count_min": {
       const end = Date.now() + T;
       while (Date.now() < end) { if ((await page.locator(s.selector).count()) >= (s.min || 1)) return; await page.waitForTimeout(150); }
@@ -26,13 +29,14 @@ async function runStep(page, s) {
   }
 }
 
-async function runProfile(p) {
-  const browser = await pw[p.engine].launch();
+async function runProfile(browser, p) {
+  let ctx;
   try {
     const o = { locale: p.locale, timezoneId: p.timezoneId, viewport: p.viewport, deviceScaleFactor: p.deviceScaleFactor, hasTouch: p.hasTouch, colorScheme: p.colorScheme || "light" };
     if (p.engine !== "firefox") o.isMobile = p.isMobile;
     if (p.userAgent) o.userAgent = p.userAgent;
-    const ctx = await browser.newContext(o);
+    if (p.reducedMotion) o.reducedMotion = "reduce";
+    ctx = await browser.newContext(o);
     if (p.storageBlocked) {
       await ctx.addInitScript(() => {
         const thrower = () => { throw new DOMException("The operation is insecure.", "SecurityError"); };
@@ -52,11 +56,16 @@ async function runProfile(p) {
     return { name: p.name, ok: !failure, failure, pageText: text, errors: errors.slice(0, 2) };
   } catch (e) {
     return { name: p.name, ok: false, failure: "harness: " + String(e.message).split("\n")[0].slice(0, 140) };
-  } finally { await browser.close(); }
+  } finally { if (ctx) await ctx.close().catch(() => {}); }
 }
 
+// One browser per engine, one context per profile: lighter than a browser per profile, so the matrix can be wider.
 (async () => {
-  const results = await Promise.all(job.profiles.map(runProfile));
+  const engines = [...new Set(job.profiles.map((p) => p.engine))];
+  const browsers = {};
+  for (const e of engines) browsers[e] = await pw[e].launch();
+  const results = await Promise.all(job.profiles.map((p) => runProfile(browsers[p.engine], p)));
+  await Promise.all(Object.values(browsers).map((b) => b.close()));
   console.log("@@RESULT@@" + JSON.stringify(results) + "@@END@@");
 })();
 `;
