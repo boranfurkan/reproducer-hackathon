@@ -18,6 +18,13 @@ Stream Processing has **no free tier** and bills while a processor runs. Create 
 4. Use the processor's preview or `sp.ticketClusters.start()` to start it. Check `reproducer.ticket_clusters` after starting three investigations from the same environment within ten minutes.
 5. Stop it when you are done (`sp.ticketClusters.stop()`): a running processor keeps billing.
 
+## Ready-made files
+
+- `scripts/stream/create-processor.js`: paste it into `mongosh` connected to the workspace; it creates the processor `ticketClusters` and starts it.
+- `scripts/stream/ticketClusters.json`: the same pipeline as plain JSON (for the Atlas UI "Create processor" JSON editor).
+- `npm run demo:cluster`: inserts three demo tickets from one environment (marked `demo: true`) so an alert appears within about a minute; `npm run demo:cluster -- --clean` removes them and the alert.
+- Verified without Atlas on 25 October: the grouping, the user count and the threshold produce exactly one alert for the three demo tickets, in the shape `GET /api/clusters` reads (`_id.repo/engine/locale`, `count`, `users`, `lastAt`), and the dashboard route returns it.
+
 ## The pipeline
 
 ```json
@@ -26,6 +33,7 @@ Stream Processing has **no free tier** and bills while a processor runs. Create 
       "connectionName": "cluster0",
       "db": "reproducer",
       "coll": "tickets",
+      "fullDocument": "updateLookup",
       "pipeline": [{ "$match": { "operationType": "insert" } }]
   } },
   { "$replaceRoot": { "newRoot": "$fullDocument" } },

@@ -12,7 +12,8 @@
     "db:setup": "tsx --env-file=.env.local scripts/setup-db.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "demo:record": "tsx --env-file=.env.local scripts/record-demo.ts",
-    "ui:shots": "tsx --env-file=.env.local scripts/ui-shots.ts"
+    "ui:shots": "tsx --env-file=.env.local scripts/ui-shots.ts",
+    "demo:cluster": "tsx --env-file=.env.local scripts/demo-cluster.ts"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
