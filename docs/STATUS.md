@@ -18,6 +18,7 @@ Nothing has been deployed. No PR has ever been opened by the agent (the loop sto
 ## How to run things
 
 ```bash
+npm ci && npx next typegen        # after a fresh clone or if node_modules/.next were deleted (typegen creates the LayoutProps types that tsc needs)
 npm run typecheck                 # tsc --noEmit
 npx eslint src scripts            # lint
 npm run db:setup                  # create collections and indexes (safe to repeat)
@@ -98,6 +99,10 @@ G1 (vertical slice) is complete: verified on 24 Oct with a real run stored in Mo
 8. **Submission (G5)**: README check from a clean clone, demo video, text per challenge (see CHECKPOINTS), export everything before the account disappears.
 
 Ideas to cut run time further (currently about 187 s warm): start the Argon proposal in parallel with the matrix using only the suspected variables; skip the rebuild when no source changed; pre-warm the Playwright web server between the red and green runs.
+
+## Incident log
+
+- **24 Oct, daytime**: every Gemini call (Argon, Flash, Antigravity) returned `429 RESOURCE_EXHAUSTED: billing account has exceeded its monthly spending cap`. Not an outage and not our usage (about 2M tokens in total); most likely the shared hackathon billing account. Fixed by the organisers issuing a new key; the new key works (Argon 4 to 7 s, Flash 3 to 4 s, Antigravity fresh environment about 18 s). `withRetry` now throws `SpendingCapError` immediately for this case. **Sandbox environment ids from before the key change belong to the old project and will not work: the first run with the new key is cold (about 2 more minutes for the Playwright install).**
 
 ## Open questions
 

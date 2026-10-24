@@ -24,7 +24,15 @@ export class TokenBudget {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Retry 429/503 (model overloaded) with exponential backoff. */
+/** Thrown when the billing account is over its spending cap. Retrying cannot help, so it is never retried. */
+export class SpendingCapError extends Error {
+  constructor(message: string) {
+    super(`Gemini API spending cap reached: ${message}`);
+    this.name = "SpendingCapError";
+  }
+}
+
+/** Retry 429 (rate limit) and 503 (model overloaded) with exponential backoff. A spending-cap 429 fails at once. */
 export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let delay = 1500;
   for (let attempt = 1; ; attempt++) {
@@ -32,6 +40,8 @@ export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
       return await fn();
     } catch (e) {
       const status = (e as { status?: number }).status;
+      const message = String((e as Error).message ?? "");
+      if (status === 429 && /spending cap/i.test(message)) throw new SpendingCapError(message.slice(0, 160));
       const retryable = status === 429 || status === 503;
       if (!retryable || attempt >= LIMITS.retryAttempts) throw e;
       await sleep(delay);
