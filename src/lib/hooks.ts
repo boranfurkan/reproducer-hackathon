@@ -74,11 +74,49 @@ export function useIssues(owner: string, name: string): { issues: IssueItem[] | 
   return { issues, error };
 }
 
-/** Starts getting the sandbox ready (Playwright, the clone) while the developer fills in the ticket form. Call it once from the form. */
-export function useWarmSandbox(owner: string, name: string): void {
+export type WarmState = 'warm' | 'warming' | 'cold' | null;
+
+/**
+ * Starts getting the sandbox ready (Playwright, the clone) while the developer fills in the ticket form, and reports its state:
+ * 'warming' until it is ready (polled every 4 s), then 'warm'. null until the first answer. Call it once from the form.
+ */
+export function useWarmSandbox(owner: string, name: string): WarmState {
+  const [state, setState] = useState<WarmState>(null);
   useEffect(() => {
-    api('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) }).catch(() => undefined);
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () =>
+      api<{ state: WarmState }>('/api/warm')
+        .then((r) => {
+          if (!alive) return;
+          setState(r.state === 'cold' ? 'warming' : r.state);
+          if (r.state !== 'warm') timer = setTimeout(poll, 4000);
+        })
+        .catch(() => undefined);
+    api<{ state: string }>('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) })
+      .then((r) => {
+        if (!alive) return;
+        setState(r.state === 'warm' ? 'warm' : 'warming');
+        if (r.state !== 'warm') timer = setTimeout(poll, 4000);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [owner, name]);
+  return state;
+}
+
+/** The current time in milliseconds, refreshed every second while `active`. Used for the live elapsed counter. */
+export function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
 }
 
 /**
@@ -172,6 +210,11 @@ export async function uploadMedia(file: File): Promise<MediaItem> {
 /** The approval gate: opens a branch and a pull request. Nothing is pushed to GitHub before this is called. */
 export async function approveRun(id: string): Promise<{ prUrl: string; number: number }> {
   return api(`/api/runs/${id}/approve`, { method: 'POST' });
+}
+
+/** Asks a running investigation to stop. It ends after the step it is in (up to about two minutes) and changes nothing. */
+export async function stopRun(id: string): Promise<void> {
+  await api(`/api/runs/${id}/stop`, { method: 'POST' });
 }
 
 /** Records that the developer rejected the fix. Nothing is pushed. */

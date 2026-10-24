@@ -3,35 +3,80 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import Header from './Header';
-import { Badge, Card, ErrorNote } from './ui';
+import Mascot from './mascot/Mascot';
+import SiteFooter from './SiteFooter';
+import { ErrorNote, Eyebrow, Panel, RunStatusChip, buttonClass } from './ui';
+import { ago, type MemoryFacets } from '@/lib/client';
 import { useClusters, useMemoryFacets, useRepos, useRuns, useSession } from '@/lib/hooks';
-import { ago } from '@/lib/client';
+import type { Pose } from './mascot/pixels';
+
+const STEPS: { title: string; text: string; pose: Pose }[] = [
+  { title: 'Pick an issue', text: 'Choose a repository and one of its open issues, the bug nobody can reproduce.', pose: 'idle' },
+  { title: 'Describe who hit it', text: 'Add the reporter’s device, browser, language, anything the issue leaves out.', pose: 'wave' },
+  { title: 'Watch it investigate', text: 'ReProducer rebuilds that environment, finds what only that user has, and writes a failing test.', pose: 'investigating' },
+  { title: 'Approve the fix', text: 'It fixes the code until the test passes, then waits for your OK before opening a pull request.', pose: 'waiting' },
+];
 
 function Landing({ error }: { error: string | null }) {
-  const steps = [
-    ['1', 'Pick an issue', 'Choose a repository and one of its open issues, the bug nobody can reproduce.'],
-    ['2', 'Describe who hit it', 'Add the reporter’s device, browser, language, anything the issue leaves out.'],
-    ['3', 'Watch it investigate', 'ReProducer rebuilds that environment, finds what only that user has, and writes a failing test.'],
-    ['4', 'Approve the fix', 'It fixes the code until the test passes, then waits for your OK before opening a pull request.'],
-  ];
   return (
-    <div className="mx-auto max-w-3xl py-10">
-      <h1 className="text-4xl font-semibold tracking-tight">Bugs you cannot reproduce, reproduced.</h1>
-      <p className="mt-4 text-lg text-zinc-600 dark:text-zinc-400">Clients report bugs that only happen on their device, in their language, in their timezone. ReProducer builds that environment, investigates by experiment, and proposes a verified fix.</p>
-      {error && <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-400">Login did not complete ({error.replaceAll('_', ' ')}). Please try again.</p>}
-      <a href="/api/auth/login" className="mt-6 inline-block rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300">Continue with GitHub</a>
-      <ol className="mt-12 grid gap-4 sm:grid-cols-2">
-        {steps.map(([n, title, text]) => (
-          <li key={n}>
-            <Card className="h-full">
-              <span className="text-xs font-semibold text-zinc-500">STEP {n}</span>
-              <h2 className="mt-1 font-semibold">{title}</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{text}</p>
-            </Card>
+    <div className="flex flex-col gap-12 sm:gap-20">
+      <div className="flex flex-wrap-reverse items-center gap-8">
+        <div className="flex min-w-0 flex-[999_1_420px] flex-col gap-5">
+          <span className="font-mono text-xs font-medium tracking-[0.08em] text-hot">FOR THE BUG THAT ONLY HAPPENS TO THEM</span>
+          <h1 className="font-mono text-[clamp(32px,5.4vw,56px)] leading-[1.08] font-semibold tracking-[-0.03em] text-balance">Bugs you cannot reproduce, reproduced.</h1>
+          <p className="max-w-[560px] text-[17px] text-muted">
+            Clients report bugs that only happen on their device, in their language, in their timezone. ReProducer builds that environment, investigates by experiment, and proposes a verified fix.
+          </p>
+          {error && <ErrorNote message={`Login did not complete (${error.replaceAll('_', ' ')}). Please try again.`} />}
+          <div className="flex flex-wrap items-center gap-4">
+            <a href="/api/auth/login" className={`${buttonClass('primary', 'lg')} no-underline`}>Log in with GitHub</a>
+            <span className="max-w-[280px] text-[13px] text-subtle">It reads your issues. It opens a pull request only after you approve.</span>
+          </div>
+        </div>
+        <div className="flex flex-[1_1_240px] justify-center">
+          <Mascot pose="investigating" size="min(280px, 60vw)" />
+        </div>
+      </div>
+      <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {STEPS.map((s, i) => (
+          <li key={s.title} className="flex flex-col overflow-hidden rounded-lg border border-purple-800 bg-purple-900">
+            <div className="flex aspect-[4/3] items-center justify-center bg-[repeating-linear-gradient(135deg,#140b32_0_10px,#190f3c_10px_20px)]">
+              <Mascot pose={s.pose} size={96} label="" />
+            </div>
+            <div className="flex flex-col gap-1.5 px-[18px] pt-4 pb-5">
+              <span className="font-mono text-xs font-medium text-hot">{String(i + 1).padStart(2, '0')}</span>
+              <h2 className="font-mono text-base font-semibold">{s.title}</h2>
+              <p className="text-sm text-muted">{s.text}</p>
+            </div>
           </li>
         ))}
       </ol>
     </div>
+  );
+}
+
+function LearnedPanel({ memory }: { memory: MemoryFacets }) {
+  const max = Math.max(1, ...memory.variable.map((b) => b.count));
+  return (
+    <Panel className="flex flex-col gap-3.5 p-[18px]">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-mono text-[15px] font-semibold">What it has learned</h2>
+        <p className="text-[13px] text-subtle">{memory.total} verified fixes in memory. What isolated each bug:</p>
+      </div>
+      <div className="flex flex-col gap-2 font-mono text-[13px]">
+        {memory.variable.map((b) => (
+          <div key={b.value} className="grid grid-cols-[80px_1fr_24px] items-center gap-2.5">
+            <span className="truncate">{b.value}</span>
+            <span className={`h-2 ${b.count === max ? 'bg-hot' : 'bg-purple-400'}`} style={{ width: `${(b.count / max) * 100}%` }} />
+            <span className="text-right text-subtle">{b.count}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1.5 border-t border-purple-800 pt-3 font-mono text-xs text-muted">
+        <span><span className="text-subtle">Engines </span>{memory.engine.map((b) => `${b.value} ×${b.count}`).join(' · ')}</span>
+        <span><span className="text-subtle">Locales </span>{memory.locale.map((b) => `${b.value} ×${b.count}`).join(' · ')}</span>
+      </div>
+    </Panel>
   );
 }
 
@@ -56,79 +101,76 @@ function Dashboard() {
   );
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px] [&>*]:min-w-0">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Choose a repository</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The one with the bug reports. Public repositories only for now (the sandbox clones over plain HTTPS).</p>
-        <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories" className="mt-4 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700" />
-        {error && <div className="mt-4"><ErrorNote message={error} /></div>}
-        <ul className="mt-4 grid gap-3">
-          {repos === null && !error && <li className="text-sm text-zinc-500">Loading repositories…</li>}
+    <div className="flex flex-wrap items-start gap-6 lg:gap-12">
+      <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-5">
+        <div className="flex items-center gap-4">
+          <Mascot pose="idle" size={72} />
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="font-mono text-[clamp(22px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em]">Choose a repository</h1>
+            <p className="text-sm text-muted">The one with the bug reports. Public repositories only for now (the sandbox clones over plain HTTPS).</p>
+          </div>
+        </div>
+        <label className="flex items-center gap-2.5 rounded-md border border-purple-700 bg-ink px-3 py-2.5 focus-within:border-purple-400">
+          <span className="font-mono text-[13px] text-subtle" aria-hidden="true">/</span>
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories" aria-label="Filter repositories" className="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-foreground outline-0 placeholder:text-subtle" />
+        </label>
+        {error && <ErrorNote message={error} />}
+        <ul className="flex flex-col gap-2">
+          {repos === null && !error && <li className="font-mono text-sm text-subtle">Loading repositories…</li>}
           {shown.map((r) => (
             <li key={r.fullName}>
-              <Link href={`/repos/${r.owner}/${r.name}`} className="block rounded-xl border border-zinc-200 p-4 transition hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{r.fullName}</span>
-                  <span className="text-xs text-zinc-500">{r.isPrivate ? 'private' : 'public'} · {r.openIssues} open</span>
+              <Link href={`/repos/${r.owner}/${r.name}`} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="font-mono text-sm font-semibold [overflow-wrap:anywhere]">{r.owner}/<span className="text-purple-200">{r.name}</span></span>
+                  {r.description && <span className="text-sm text-muted">{r.description}</span>}
                 </div>
-                {r.description && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{r.description}</p>}
+                <span className="flex flex-none flex-col items-end gap-0.5 font-mono text-xs text-subtle">
+                  <span className={`font-semibold ${r.openIssues > 0 ? 'text-hot' : 'text-muted'}`}>{r.openIssues} open</span>
+                  {r.isPrivate ? 'private' : 'public'}
+                </span>
               </Link>
             </li>
           ))}
-          {repos && shown.length === 0 && <li className="text-sm text-zinc-500">No repositories match.</li>}
-          {privateCount > 0 && (
-            <li>
-              <button type="button" onClick={() => setShowPrivate((v) => !v)} className="text-sm text-zinc-500 underline hover:text-zinc-800 dark:hover:text-zinc-200">
-                {showPrivate ? 'Hide private repositories' : `Show ${privateCount} private repositories (cannot be investigated yet)`}
-              </button>
-            </li>
-          )}
+          {repos && shown.length === 0 && <li className="font-mono text-sm text-subtle">No repositories match.</li>}
         </ul>
+        {privateCount > 0 && (
+          <button type="button" onClick={() => setShowPrivate((v) => !v)} className="self-start text-left text-[13px] text-subtle underline underline-offset-[3px] hover:text-foreground">
+            {showPrivate ? 'Hide private repositories' : `Show ${privateCount} private repositories (cannot be investigated yet)`}
+          </button>
+        )}
       </div>
-      <aside>
-        {clusters.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold">Possible shared bugs</h2>
-            <ul className="mt-2 grid gap-2">
-              {clusters.map((c, i) => (
-                <li key={i} className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
-                  <strong>{c.count} reports</strong> from {c.engine} / {c.locale} in {c.repo}
-                  <span className="block text-xs text-zinc-600 dark:text-zinc-400">{c.users} reporter{c.users === 1 ? '' : 's'}, latest {ago(c.lastAt)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <h2 className="text-lg font-semibold">Recent investigations</h2>
-        <ul className="mt-3 grid gap-2">
-          {runs === null && <li className="text-sm text-zinc-500">Loading…</li>}
-          {runs?.length === 0 && <li className="text-sm text-zinc-500">None yet.</li>}
+
+      <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
+        {clusters.map((c, i) => (
+          <section key={i} className="flex flex-col gap-2 rounded-lg border border-amber/35 bg-amber/6 px-[18px] py-4">
+            <h2 className="font-mono text-[13px] font-semibold tracking-[0.04em] text-amber">POSSIBLE SHARED BUG</h2>
+            <p className="text-sm"><b>{c.count} reports</b> from {c.engine} / {c.locale} in {c.repo?.split('/')[1] ?? c.repo}</p>
+            <p className="font-mono text-xs text-muted">{c.users} reporter{c.users === 1 ? '' : 's'}, latest {ago(c.lastAt)}</p>
+          </section>
+        ))}
+
+        <section className="flex flex-col gap-2.5">
+          <Eyebrow>Recent investigations</Eyebrow>
+          {runs === null && <p className="font-mono text-sm text-subtle">Loading…</p>}
+          {runs?.length === 0 && (
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-purple-700 px-4 py-6 text-center">
+              <Mascot pose="idle" size={64} label="" />
+              <p className="text-sm text-muted">Nothing yet. Pick a repository and an issue.</p>
+            </div>
+          )}
           {runs?.map((r) => (
-            <li key={r._id}>
-              <Link href={`/runs/${r._id}`} className="block rounded-lg border border-zinc-200 p-3 text-sm hover:border-zinc-400 dark:border-zinc-800 dark:hover:border-zinc-600">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{r.repo}#{r.issueNumber}</span>
-                  <Badge kind={r.prUrl ? 'fixed' : r.status} label={r.prUrl ? 'PR opened' : undefined} />
-                </div>
-                <p className="mt-1 truncate text-zinc-600 dark:text-zinc-400">{r.title}</p>
-                <p className="mt-1 text-xs text-zinc-500">{ago(r.createdAt)}</p>
-              </Link>
-            </li>
+            <Link key={r._id} href={`/runs/${r._id}`} className="flex flex-col gap-1.5 rounded-md border border-purple-800 bg-purple-900 px-3.5 py-3 text-foreground no-underline transition-colors hover:border-purple-500">
+              <span className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-mono text-[13px] font-semibold">{r.repo.split('/')[1]}#{r.issueNumber}</span>
+                <RunStatusChip run={r} inList />
+              </span>
+              <span className="truncate text-sm text-muted">{r.title}</span>
+              <span className="font-mono text-xs text-subtle">{ago(r.createdAt)}</span>
+            </Link>
           ))}
-        </ul>
-        {memory && memory.total > 0 && (
-          <div className="mt-8">
-            <h2 className="text-lg font-semibold">What it has learned</h2>
-            <p className="mt-1 text-xs text-zinc-500">{memory.total} verified fixes in memory. What isolated each bug:</p>
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {memory.variable.map((b) => (
-                <li key={b.value} className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs dark:border-zinc-700">{b.value} <span className="text-zinc-500">×{b.count}</span></li>
-              ))}
-            </ul>
-            <p className="mt-3 text-xs text-zinc-500">Engines: {memory.engine.map((b) => `${b.value} ×${b.count}`).join(', ')}</p>
-            <p className="mt-1 text-xs text-zinc-500">Locales: {memory.locale.map((b) => `${b.value} ×${b.count}`).join(', ')}</p>
-          </div>
-        )}
+        </section>
+
+        {memory && memory.total > 0 && <LearnedPanel memory={memory} />}
       </aside>
     </div>
   );
@@ -136,12 +178,14 @@ function Dashboard() {
 
 export default function Home() {
   const user = useSession();
+  const loginError = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('error');
   return (
-    <>
+    <div className="flex min-h-screen flex-col">
       <Header user={user ?? null} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-        {user === undefined ? <p className="text-sm text-zinc-500">Loading…</p> : user ? <Dashboard /> : <Landing error={typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('error')} />}
+      <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 pt-6 pb-16 sm:px-8 sm:pt-12">
+        {user === undefined ? <p className="font-mono text-sm text-subtle">Loading…</p> : user ? <Dashboard /> : <Landing error={loginError} />}
       </main>
-    </>
+      <SiteFooter />
+    </div>
   );
 }

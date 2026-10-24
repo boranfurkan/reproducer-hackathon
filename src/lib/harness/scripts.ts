@@ -59,17 +59,30 @@ async function runProfile(browser, p) {
   } finally { if (ctx) await ctx.close().catch(() => {}); }
 }
 
-// One browser per engine, one context per profile: lighter than a browser per profile, so the matrix can be wider.
+// One browser per engine, one context per profile. Every profile is replayed in every installed engine (the matrix table has a column per
+// engine); the result that counts is the one for the profile's own engine, the other engines are extra information.
 (async () => {
-  const engines = [...new Set(job.profiles.map((p) => p.engine))];
+  const engines = job.engines && job.engines.length ? job.engines : [...new Set(job.profiles.map((p) => p.engine))];
   const browsers = {};
   const skipped = [];
   // An engine that cannot launch (not installed) skips its profiles instead of crashing the whole matrix.
   for (const e of engines) {
     try { browsers[e] = await pw[e].launch(); } catch (err) { skipped.push(e + ": " + String(err.message).split("\n")[0].slice(0, 100)); }
   }
-  const runnable = job.profiles.filter((p) => browsers[p.engine]);
-  const results = await Promise.all(runnable.map((p) => runProfile(browsers[p.engine], p)));
+  const launched = Object.keys(browsers);
+  const tasks = [];
+  for (const p of job.profiles) {
+    const own = launched.includes(p.engine) ? p.engine : launched[0];
+    for (const e of launched) tasks.push(runProfile(browsers[e], { ...p, engine: e }).then((r) => ({ name: p.name, engine: e, primary: e === own, r })));
+  }
+  const done = await Promise.all(tasks);
+  const results = job.profiles.filter((p) => done.some((d) => d.name === p.name)).map((p) => {
+    const mine = done.filter((d) => d.name === p.name);
+    const main = mine.find((d) => d.primary).r;
+    const byEngine = {};
+    for (const d of mine) byEngine[d.engine] = { ok: d.r.ok, failure: d.r.failure };
+    return { ...main, name: p.name, engines: byEngine };
+  });
   await Promise.all(Object.values(browsers).map((b) => b.close()));
   console.log("@@RESULT@@" + JSON.stringify(results) + "@@END@@");
   if (skipped.length) console.log("@@SKIPPED@@" + JSON.stringify(skipped) + "@@END@@");

@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useRef, useState } from 'react';
 import Shell from './Shell';
-import { buttonClass, Card, ErrorNote } from './ui';
+import { ErrorNote, Eyebrow, PixelDots, Panel, buttonClass } from './ui';
 import type { MediaItem } from '@/lib/client';
 import { startRun, uploadMedia, useIssues, useWarmSandbox } from '@/lib/hooks';
 
@@ -18,16 +18,19 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
   const router = useRouter();
   const { issues, error: issuesError } = useIssues(owner, name);
   const issue = issues?.find((i) => i.number === number) ?? null;
-  const [notes, setNotes] = useState('');
+  // "Try again with more detail" on a stopped run brings the earlier notes back.
+  const [notes, setNotes] = useState(useSearchParams().get('notes') ?? '');
   const [env, setEnv] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
   const error = formError || issuesError;
 
   // Get the sandbox ready while the form is being filled in (a cold start installs Playwright, about 2 minutes).
-  useWarmSandbox(owner, name);
+  const warm = useWarmSandbox(owner, name);
 
   async function upload(files: FileList | null) {
     const file = files?.[0];
@@ -55,63 +58,105 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
     }
   }
 
+  const field = 'rounded-md border bg-ink text-foreground outline-0 placeholder:text-subtle focus:border-purple-500 focus:shadow-[0_0_0_3px_rgba(155,116,240,0.18)]';
   return (
-    <>
-      <Link href={`/repos/${owner}/${name}`} className="text-sm text-zinc-500 hover:underline">← {owner}/{name}</Link>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Investigate #{number}</h1>
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">The report</h2>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Link href={`/repos/${owner}/${name}`} className="font-mono text-[13px] text-subtle no-underline [overflow-wrap:anywhere] hover:text-foreground">← {owner}/{name}</Link>
+          <h1 className="font-mono text-[clamp(22px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em]">Investigate <span className="text-hot">#{number}</span></h1>
+        </div>
+        {warm === 'warming' && (
+          <div role="status" className="flex items-center gap-2.5 rounded-md border border-cyan/25 bg-cyan/8 px-3 py-2 font-mono text-xs font-medium text-cyan">
+            <PixelDots />
+            Sandbox warming up · installing Playwright, about 2 min
+          </div>
+        )}
+        {warm === 'warm' && (
+          <div role="status" className="flex items-center gap-2 rounded-md border border-pass/25 bg-pass/8 px-3 py-2 font-mono text-xs font-medium text-pass">
+            <span className="size-1.5 bg-pass" aria-hidden="true" />
+            Sandbox ready
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-start gap-6">
+        <Panel className="flex min-w-0 flex-[1_1_360px] flex-col gap-2.5 px-[22px] py-5">
+          <Eyebrow>The report</Eyebrow>
           {issue ? (
             <>
-              <h3 className="mt-2 font-medium">{issue.title}</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">{issue.body || 'No description.'}</p>
-              <a href={issue.url} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs text-zinc-500 hover:underline">Open on GitHub ↗</a>
+              <h3 className="font-mono text-[17px] leading-snug font-semibold">{issue.title}</h3>
+              <p className="whitespace-pre-wrap text-[15px] text-muted">{issue.body || 'No description.'}</p>
+              <a href={issue.url} target="_blank" rel="noreferrer" className="font-mono text-xs">Open on GitHub ↗</a>
             </>
           ) : error ? null : (
-            <p className="mt-2 text-sm text-zinc-500">Loading…</p>
+            <p className="font-mono text-sm text-subtle">Loading…</p>
           )}
-        </Card>
-        <div className="grid grid-cols-1 gap-4">
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium">Who hit the bug?</span>
-            <span className="text-xs text-zinc-500">Device, browser, language, location: whatever the report leaves out. The agent rebuilds this environment.</span>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder={EXAMPLES[0]} className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700" />
-            <span className="flex flex-wrap gap-2 text-xs">
+        </Panel>
+
+        <div className="flex min-w-0 flex-[1.2_1_420px] flex-col gap-[22px]">
+          <label className="flex flex-col gap-2">
+            <span className="font-mono text-sm font-semibold">Who hit the bug?</span>
+            <span className="text-[13px] text-subtle">Device, browser, language, location: whatever the report leaves out. The agent rebuilds this environment.</span>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={EXAMPLES[0]} className={`${field} resize-y border-purple-700 p-3 text-[15px] leading-normal`} />
+            <span className="flex flex-wrap gap-1.5">
               {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" onClick={() => setNotes(ex)} className="rounded-full border border-zinc-300 px-2.5 py-1 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-900">{ex.slice(0, 34)}…</button>
+                <button key={ex} type="button" onClick={() => setNotes(ex)} className="rounded-sm border border-purple-700 px-2.5 py-1 font-mono text-xs text-muted transition-colors hover:bg-purple-850 hover:text-foreground">
+                  {ex.slice(0, 34)}…
+                </button>
               ))}
             </span>
           </label>
-          <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Screen recording or screenshot <span className="font-normal text-zinc-500">(optional)</span></span>
-            <span className="text-xs text-zinc-500">The customer&apos;s recording of the bug. The agent watches it for the steps and for clues about their device and language. mp4, webm, mov, png, jpg or webp, up to 50 MB.</span>
-            <input type="file" accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp" disabled={uploading || media.length >= 3} onChange={(e) => { upload(e.target.files); e.target.value = ''; }} className="text-sm file:mr-3 file:rounded-lg file:border file:border-zinc-300 file:bg-transparent file:px-3 file:py-1.5 file:text-sm dark:file:border-zinc-700" />
-            {uploading && <span className="text-xs text-zinc-500">Uploading…</span>}
+
+          <div className="flex flex-col gap-2">
+            <span className="font-mono text-sm font-semibold">Screen recording or screenshot <span className="font-normal text-subtle">(optional)</span></span>
+            <span className="text-[13px] text-subtle">The customer&apos;s recording of the bug. The agent watches it for the steps and for clues about their device and language.</span>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); upload(e.dataTransfer.files); }}
+              className={`flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed bg-ink p-[18px] ${dragging ? 'border-hot bg-hot/5' : 'border-purple-700'}`}
+            >
+              <span className="text-sm text-muted">
+                Drop a file or{' '}
+                <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading || media.length >= 3} className="text-purple-200 underline underline-offset-[3px] disabled:opacity-50">choose one</button>
+                {uploading && <span className="ml-2 font-mono text-xs text-cyan">uploading…</span>}
+              </span>
+              <span className="font-mono text-xs text-subtle">mp4 webm mov png jpg webp · 50 MB</span>
+              <input ref={fileInput} type="file" accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp" className="sr-only" tabIndex={-1} onChange={(e) => { upload(e.target.files); e.target.value = ''; }} />
+            </div>
             {media.length > 0 && (
-              <ul className="flex flex-wrap gap-2 text-xs">
+              <span className="flex flex-wrap gap-1.5">
                 {media.map((m) => (
-                  <li key={m.uri} className="flex items-center gap-1 rounded-full border border-zinc-300 px-2.5 py-1 dark:border-zinc-700">
+                  <span key={m.uri} className="inline-flex items-center gap-2 rounded-sm bg-purple-850 py-1 pr-1.5 pl-2.5 font-mono text-xs text-foreground">
                     {m.kind === 'video' ? 'Video' : 'Image'}: {m.label}
-                    <button type="button" aria-label={`Remove ${m.label}`} onClick={() => setMedia((all) => all.filter((x) => x.uri !== m.uri))} className="ml-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">×</button>
-                  </li>
+                    <button type="button" aria-label={`Remove ${m.label}`} onClick={() => setMedia((all) => all.filter((x) => x.uri !== m.uri))} className="size-5 rounded-[4px] text-sm text-subtle transition-colors hover:bg-purple-700 hover:text-foreground">×</button>
+                  </span>
                 ))}
-              </ul>
+              </span>
             )}
           </div>
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium">Environment variables <span className="font-normal text-zinc-500">(optional)</span></span>
-            <span className="text-xs text-zinc-500">One KEY=value per line, if the app needs them to start. Sent to the sandbox only; never stored or logged.</span>
-            <textarea value={env} onChange={(e) => setEnv(e.target.value)} rows={3} spellCheck={false} placeholder="PORT=3000" className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 font-mono text-xs dark:border-zinc-700" />
+
+          <label className="flex flex-col gap-2">
+            <span className="flex flex-wrap items-center gap-2.5">
+              <span className="font-mono text-sm font-semibold">Environment variables <span className="font-normal text-subtle">(optional)</span></span>
+              <span className="rounded-sm bg-pass/10 px-[7px] py-0.5 font-mono text-[11px] font-medium tracking-[0.06em] text-pass">SANDBOX ONLY</span>
+            </span>
+            <span className="text-[13px] text-subtle">One KEY=value per line, if the app needs them to start.</span>
+            <textarea value={env} onChange={(e) => setEnv(e.target.value)} rows={3} spellCheck={false} placeholder="PORT=3000" className={`${field} resize-y border-purple-700 p-3 font-mono text-[13px] leading-relaxed`} />
+            <span className="rounded-md border border-purple-800 bg-purple-900 px-3 py-2.5 text-[13px] text-muted">
+              Sent to the sandbox only; never stored or logged. A run with environment variables always gets a fresh sandbox.
+            </span>
           </label>
+
           {error && <ErrorNote message={error} />}
-          <div>
-            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass.primary}>{busy ? 'Starting…' : 'Investigate'}</button>
-            <p className="mt-2 text-xs text-zinc-500">A run takes a few minutes. Nothing is pushed to GitHub until you approve.</p>
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? 'Starting…' : 'Investigate'}</button>
+            <span className="max-w-[340px] text-[13px] text-subtle">A run takes a few minutes. Nothing is pushed to GitHub until you approve.</span>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

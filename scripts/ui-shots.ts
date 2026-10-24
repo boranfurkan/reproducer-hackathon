@@ -1,4 +1,4 @@
-// Screenshots of every page, light and dark, desktop and phone width, with fake data, for reviewing a redesign.
+// Screenshots of every page, one colour scheme, desktop and phone width, with fake data, for reviewing a redesign.
 //
 //   npm run dev                      # in one terminal (or: npm run build && npm start)
 //   npm run ui:shots                 # in another; add  -- --base http://localhost:3001  for another port
@@ -17,12 +17,13 @@ const base = (args.includes("--base") ? args[args.indexOf("--base") + 1] : undef
 const out = ".ui-shots";
 const FAKE = "ui-shots-tester";
 
-const matrix = (ok: boolean) => [
-  { name: "reporter", ok, failure: ok ? null : 'expect_count_min [data-testid="book-card"]: count stayed below 1', errors: [] as string[], pageText: "" },
-  { name: "baseline", ok: true, failure: null, errors: [] as string[], pageText: "" },
-  { name: "reset-locale", ok: true, failure: null, errors: [] as string[], pageText: "" },
-  { name: "reset-timezone", ok, failure: ok ? null : "expect_count_min: count stayed below 1", errors: [] as string[], pageText: "" },
-  { name: "add-storage-blocked", ok: false, failure: "expect_visible: timeout", errors: ["The operation is insecure."], pageText: "" },
+const eng = (c: boolean, w = c) => ({ chromium: { ok: c, failure: c ? null : "expect_count_min: count stayed below 1" }, webkit: { ok: w, failure: w ? null : "expect_count_min: count stayed below 1" } });
+const matrix = (fixed: boolean) => [
+  { name: "reporter", kind: "as reported", env: "tr-TR · Europe/Istanbul · 412×1004", ok: fixed, failure: fixed ? null : "expect_count_min: count stayed below 1", errors: [] as string[], engines: eng(fixed) },
+  { name: "baseline", kind: "neutral", env: "en-US · UTC · 1280×720", ok: true, failure: null, errors: [] as string[], engines: eng(true) },
+  { name: "reset-locale", kind: "reset one", env: "", change: "en-US instead of tr-TR", ok: true, failure: null, errors: [] as string[], engines: eng(true) },
+  { name: "reset-timezone", kind: "reset one", env: "", change: "UTC instead of Europe/Istanbul", ok: fixed, failure: fixed ? null : "expect_count_min: count stayed below 1", errors: [] as string[], engines: eng(fixed) },
+  { name: "add-storage-blocked", kind: "added", env: "", change: "storage blocked", ok: false, failure: "expect_visible: timeout", errors: ["The operation is insecure."], engines: eng(false) },
 ];
 
 async function seed() {
@@ -31,12 +32,13 @@ async function seed() {
   const events = await collection<RunEventDoc>("run_events");
   const fixed = new ObjectId();
   const running = new ObjectId();
+  const stopped = new ObjectId();
   const mkEvents = (runId: InstanceType<typeof ObjectId>, upTo: number): RunEventDoc[] =>
     (
       [
         ["boot", 4000, "Sandbox ready", undefined],
         ["understood", 14000, "Customers in Turkey using Chrome on an Android phone see an empty category page.", { mediaObservations: "The user opens the shop, taps Fiction and sees \"No books in this category yet\"." }],
-        ["profile", 14500, "chromium, tr-TR, Europe/Istanbul, 412x1004, touch", { engine: "chromium" }],
+        ["profile", 14500, "chromium, tr-TR, Europe/Istanbul, 412x1004, touch", { engine: "chromium", locale: "tr-TR", timezoneId: "Europe/Istanbul", viewport: { width: 412, height: 1004 }, deviceScaleFactor: 2.625, hasTouch: true }],
         ["hypothesis", 21000, "Replay plan: 3 steps. Success means: the Fiction page shows at least one book card.", undefined],
         ["matrix", 70000, "Matrix round 1 (5 profiles)", matrix(false)],
         ["hypothesis", 70100, "Other problems seen while investigating, not part of this issue: add-storage-blocked (The operation is insecure.)", undefined],
@@ -52,19 +54,30 @@ async function seed() {
     )
       .slice(0, upTo)
       .map(([type, atMs, summary, data], seq) => ({ runId, at: new Date(), seq, atMs, type, summary, data }));
-  await events.insertMany([...mkEvents(fixed, 99), ...mkEvents(running, 5)]);
+  const stoppedEvents: RunEventDoc[] = [
+    { runId: stopped, at: new Date(), seq: 0, atMs: 12000, type: "understood", summary: "The pickup confirmation shows the day before the reserved date.", data: undefined },
+    { runId: stopped, at: new Date(), seq: 1, atMs: 90000, type: "matrix", summary: "Matrix round 1 (3 profiles)", data: [{ name: "reporter", kind: "as reported", env: "en-US · Europe/London · 1536×864", ok: true, failure: null, engines: eng(true) }, { name: "baseline", kind: "neutral", env: "en-GB · UTC", ok: true, failure: null, engines: eng(true) }, { name: "add-dark-mode", kind: "added", change: "dark mode", ok: true, failure: null, engines: eng(true) }] },
+    { runId: stopped, at: new Date(), seq: 2, atMs: 120000, type: "stopped", summary: "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.", data: undefined },
+  ];
+  await events.insertMany([...mkEvents(fixed, 99), ...mkEvents(running, 5), ...stoppedEvents]);
   await runs.insertMany([
     {
-      _id: fixed, repo: "acme/shop", issueNumber: 12, title: "Category pages empty for some customers", notes: "", status: "fixed", createdAt: new Date(Date.now() - 600_000), finishedAt: new Date(Date.now() - 400_000),
+      _id: fixed, repo: "acme/shop", issueNumber: 12, title: "Category pages empty for some customers", notes: "Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish", attachments: [{ kind: "image", name: "customer-screenshot.png" }], tokenCap: 600_000, isolatedRows: ["reset-locale"], matrix: matrix(true), status: "fixed", createdAt: new Date(Date.now() - 600_000), finishedAt: new Date(Date.now() - 400_000),
       userLogin: FAKE, tokensUsed: 82_000, decisiveVariables: ["locale"], otherProblems: [{ profile: "add-storage-blocked", problem: "The operation is insecure." }],
       rootCause: { file: "src/categories.js", rootCause: "Locale-sensitive upper-casing turns the ASCII i into a dotted capital I.", explanation: "Under tr-TR, 'fiction'.toLocaleUpperCase(navigator.language) gives 'FİCTİON', which never matches the server's 'FICTION' key." },
       diff: "diff --git a/src/categories.js b/src/categories.js\n--- a/src/categories.js\n+++ b/src/categories.js\n@@ -1,6 +1,5 @@\n // The server stores categories under upper-case keys.\n-// Turn a URL slug into that key, using the visitor's language.\n+// Turn a URL slug into that locale-independent ASCII key.\n export function categoryKey(slug) {\n-  return slug.toLocaleUpperCase(navigator.language);\n+  return slug.toUpperCase();\n }",
       profile: { engine: "chromium", locale: "tr-TR", timezoneId: "Europe/Istanbul", viewport: { width: 412, height: 1004 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true, name: "reporter", notEmulated: ["Real device GPU", "The vendor's browser build", "Real mobile network"] },
       testContent: "// test", fixFiles: [{ path: "src/categories.js", content: "x" }],
     },
-    { _id: running, repo: "acme/shop", issueNumber: 13, title: "Shop opens as a blank white page for some visitors", notes: "", status: "running", createdAt: new Date(), userLogin: FAKE },
+    { _id: running, repo: "acme/shop", issueNumber: 13, title: "Shop opens as a blank white page for some visitors", notes: "iPhone, opened from an in-app browser, language English (UK)", status: "running", createdAt: new Date(Date.now() - 88_000), userLogin: FAKE, tokensUsed: 31_000, tokenCap: 600_000 },
+    {
+      _id: stopped, repo: "acme/shop", issueNumber: 14, title: "Pickup confirmation shows the wrong day", notes: "Chrome on a Windows laptop, language English (US)", status: "not_reproduced", createdAt: new Date(Date.now() - 400_000), finishedAt: new Date(Date.now() - 100_000), userLogin: FAKE, tokensUsed: 85_000, tokenCap: 600_000,
+      reason: "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.",
+      suggestions: ["Where the customer is (city or timezone): the timezone was guessed as Europe/London.", "A screenshot of the confirmation page."],
+      profile: { engine: "chromium", locale: "en-US", timezoneId: "Europe/London", viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, isMobile: false, hasTouch: false, name: "reporter", notEmulated: [] },
+    },
   ]);
-  return { fixed: String(fixed), running: String(running), ids: [fixed, running] };
+  return { fixed: String(fixed), running: String(running), stopped: String(stopped), ids: [fixed, running, stopped] };
 }
 
 async function main() {
@@ -79,7 +92,7 @@ async function main() {
   ];
   const issues = [12, 13, 14].map((n) => ({ number: n, title: ["Category pages empty for some customers", "Shop opens as a blank white page for some visitors", "Pickup confirmation shows the wrong day"][n - 12], body: "A few customers have written in that it does not work for them. I cannot reproduce it on my own machine.", author: "maintainer", createdAt: new Date(Date.now() - n * 3_600_000).toISOString(), comments: 0, url: "https://github.com/acme/shop/issues/" + n }));
   try {
-    for (const scheme of ["light", "dark"] as const) {
+    for (const scheme of ["dark"] as const) {
       for (const [device, viewport] of [["desktop", { width: 1280, height: 900 }], ["phone", { width: 390, height: 844 }]] as const) {
         const ctx = await browser.newContext({ viewport, colorScheme: scheme });
         await ctx.route("**/api/repos", (r) => r.fulfill({ json: { repos } }));
@@ -99,10 +112,11 @@ async function main() {
         await shot("4-ticket", "/repos/acme/shop/issues/13");
         await shot("5-run-fixed", `/runs/${seeded.fixed}`);
         await shot("6-run-running", `/runs/${seeded.running}`);
+        await shot("7-run-could-not-reproduce", `/runs/${seeded.stopped}`);
         await ctx.close();
       }
     }
-    console.log(`Screenshots saved in ${out}/ (light and dark, desktop and phone, 6 pages each)`);
+    console.log(`Screenshots saved in ${out}/ (desktop and phone, 7 pages each)`);
   } finally {
     await browser.close();
     await (await collection<RunEventDoc>("run_events")).deleteMany({ runId: { $in: seeded.ids } });

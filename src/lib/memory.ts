@@ -153,16 +153,17 @@ export async function recallSimilar(queryText: string, limit = 3): Promise<Memor
 }
 
 /** Past fixes whose diff looks like this one (voyage-code-4 embeddings). */
-export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string }[]> {
+export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string }[]> {
   try {
     const col = await collection<BugMemoryDoc>("bug_memory");
     const docs = await col
-      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1 } }])
+      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1, isolatedVariable: 1 } }])
       .toArray();
     return docs
       .filter((d) => !excludeRunId || String(d.runId) !== excludeRunId)
       .slice(0, limit)
-      .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, file: d.file }));
+      
+      .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, file: d.file, isolatedVariable: String(d.isolatedVariable ?? "") }));
   } catch (e) {
     console.error("similarFixes failed:", (e as Error).message);
     return [];

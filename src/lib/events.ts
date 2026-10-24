@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import type { Emit, InvestigationResult, Ticket } from "./agent/investigate";
+import { LIMITS } from "./config";
 import { collection } from "./mongo";
 import { recordMemory } from "./memory";
 import { redact, redactDeep } from "./redact";
@@ -26,7 +27,26 @@ export interface RunDoc {
   issueUrl?: string;
   /** The reporter's environment profile and the final matrix, for the approval card and the PR text. */
   profile?: EnvProfile;
-  matrix?: { name: string; ok: boolean; failure: string | null }[];
+  matrix?: {
+    name: string;
+    ok: boolean;
+    failure: string | null;
+    errors?: string[];
+    engines?: Record<string, { ok: boolean; failure: string | null }>;
+    kind?: string;
+    env?: string;
+    change?: string;
+  }[];
+  /** Matrix rows that isolate the cause (highlighted in the table). */
+  isolatedRows?: string[];
+  /** When the bug could not be reproduced: details the developer could add that would help. */
+  suggestions?: string[];
+  /** What the developer attached to the ticket (names only; the files stay in the Gemini Files API). */
+  attachments?: { kind: string; name: string }[];
+  /** The per-run token cap, so the page can show "31k of 600k" while it runs. */
+  tokenCap?: number;
+  /** Set by the Stop button; the investigation checks it between steps. */
+  stopRequested?: boolean;
   understandingSummary?: string;
   /** Other failing profiles seen while investigating (probably other bugs), shown on the run page and in the PR text. */
   otherProblems?: { profile: string; problem: string }[];
@@ -73,6 +93,8 @@ export interface RunEventDoc {
   seq: number;
   /** Milliseconds since the run started, for the timeline. */
   atMs: number;
+  /** Running token total when the event happened. */
+  tokens?: number;
   type: RunEventType;
   summary: string;
   data?: unknown;
@@ -104,22 +126,27 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
     notes: redact(ticket.notes, secrets),
     status: "running",
     createdAt: new Date(),
+    tokenCap: LIMITS.maxTokensPerRun,
+    attachments: (ticket.media ?? []).map((m) => ({ kind: m.kind, name: m.name })),
     ...meta,
   });
 
   const pending: Promise<unknown>[] = [];
   let seq = 0;
-  const emit: Emit = (type, summary, data) => {
+  const emit: Emit = (type, summary, data, progress) => {
     const doc: RunEventDoc = {
       runId,
       at: new Date(),
       seq: seq++,
       atMs: Date.now() - t0,
+      tokens: progress?.tokens,
       type,
       summary: redact(summary, secrets),
       data: clip(data, secrets),
     };
     pending.push(events.insertOne(doc).catch((e) => console.error("run_events write failed:", (e as Error).message)));
+    // Keep the run's token count current so the page can show it while the run is going.
+    if (progress?.tokens !== undefined) pending.push(runs.updateOne({ _id: runId }, { $set: { tokensUsed: progress.tokens } }).catch(() => undefined));
     // The profile event is the first moment the reporter's environment is known: record the ticket for the stream processor.
     if (type === "profile" && data && typeof data === "object") {
       const p = data as Partial<EnvProfile>;
@@ -158,7 +185,9 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           rootCause: r.rootCause,
           diff: r.diff,
           profile: r.understanding?.profile,
-          matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
+          matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure, errors: m.errors, engines: m.engines, kind: m.kind, env: m.env, change: m.change })),
+          isolatedRows: r.isolatedRows,
+          suggestions: r.suggestions,
           understandingSummary: r.understanding?.summary,
           otherProblems: r.otherProblems,
           prTitle: r.prTitle,

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { buttonClass } from './ui';
+import Mascot from './mascot/Mascot';
+import { UserTile, buttonClass } from './ui';
+import { initials, type SessionUser } from '@/lib/client';
 import { logout as endSession } from '@/lib/hooks';
-import type { SessionUser } from '@/lib/client';
 
 export default function Header({ user }: { user: SessionUser | null }) {
   async function logout() {
@@ -12,20 +13,20 @@ export default function Header({ user }: { user: SessionUser | null }) {
     window.location.reload();
   }
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-semibold tracking-tight">ReProducer</Link>
+    <header className="border-b border-purple-800 bg-purple-950">
+      <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-3 px-4 py-3 sm:px-8">
+        <Link href="/" className="flex items-center gap-2.5 text-foreground no-underline">
+          <Mascot avatar size={32} label="" />
+          <span className="font-mono text-base font-semibold tracking-tight">ReProducer</span>
+        </Link>
         {user ? (
-          <div className="flex items-center gap-3 text-sm">
-            {user.avatar && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatar} alt="" className="h-7 w-7 rounded-full" />
-            )}
-            <span>{user.login}</span>
-            <button onClick={logout} className={buttonClass.secondary}>Log out</button>
+          <div className="flex items-center gap-3 font-mono text-[13px] font-medium text-muted">
+            <UserTile letters={initials(user.name, user.login)} />
+            <span className="max-w-[30vw] truncate">{user.login}</span>
+            <button onClick={logout} className={buttonClass('secondary', 'sm')}>Log out</button>
           </div>
         ) : (
-          <a href="/api/auth/login" className={buttonClass.primary}>Continue with GitHub</a>
+          <a href="/api/auth/login" className={`${buttonClass('primary', 'sm')} no-underline`}>Log in with GitHub</a>
         )}
       </div>
     </header>

@@ -1,5 +1,6 @@
 import { investigate, type Ticket } from "./agent/investigate";
-import { startRun } from "./events";
+import { startRun, type RunDoc } from "./events";
+import { collection } from "./mongo";
 import { getIssue } from "./github";
 import type { MediaRef } from "./media";
 import { acquireWarm } from "./warm";
@@ -45,6 +46,8 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
         environmentId: warm.environmentId,
         githubToken: input.token,
         envVars: input.envVars,
+        // The Stop button sets a flag on the run; the investigation checks it between steps.
+        shouldStop: async () => Boolean((await (await collection<RunDoc>("runs")).findOne({ _id: record.runId }, { projection: { stopRequested: 1 } }))?.stopRequested),
       });
       environmentId = result.environmentId;
       await record.finish(result);

@@ -3,207 +3,167 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
+import Mascot from './mascot/Mascot';
+import ApprovalCard from './run/ApprovalCard';
+import Timeline from './run/Timeline';
 import Shell from './Shell';
-import { Badge, buttonClass, Card, ErrorNote } from './ui';
-import type { MatrixRow, RunView, SimilarFix, TimelineEvent } from '@/lib/client';
-import { approveRun, rejectRun, useRun } from '@/lib/hooks';
+import { ErrorNote, Eyebrow, InlineCode, Panel, RunStatusChip, buttonClass } from './ui';
+import { formatClock, formatDuration, kilo, type RunView, type TimelineEvent } from '@/lib/client';
+import { stopRun, useNow, useRun } from '@/lib/hooks';
 
-const LABELS: Record<string, string> = {
-  understood: 'Read the report',
-  profile: 'Rebuilt the environment',
-  boot: 'Sandbox',
-  hypothesis: 'Hypothesis',
-  memory: 'Memory',
-  matrix: 'Replay matrix',
-  root_cause: 'Root cause',
-  test_written: 'Failing test',
-  fix_attempt: 'Fix attempt',
-  green: 'Verified',
-  approval_requested: 'Waiting for you',
-  pr_opened: 'Pull request',
-  stopped: 'Stopped',
-};
+/** The steps of an investigation in the order they happen, for the "now" panel: [label, the event that completes it, what it is doing]. */
+const STEPS: [string, string, string][] = [
+  ['Read the report', 'understood', 'Reading the report'],
+  ['Rebuilt the environment', 'profile', 'Rebuilding the environment'],
+  ['Replay matrix', 'matrix', 'Running the matrix'],
+  ['Checked memory', 'memory', 'Checking memory'],
+  ['Root cause', 'root_cause', 'Finding the root cause'],
+  ['Test fails before the fix', 'test_written', 'Writing the failing test'],
+  ['Fix', 'fix_attempt', 'Fixing the code'],
+  ['Tests pass', 'green', 'Checking the fix'],
+];
 
-const secs = (ms: number) => `${Math.round(ms / 1000)}s`;
-const formatDuration = (ms: number) => (ms < 90_000 ? `${Math.round(ms / 1000)} s` : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`);
-
-function MatrixTable({ rows }: { rows: MatrixRow[] }) {
+function NowPanel({ run, events }: { run: RunView; events: TimelineEvent[] }) {
+  const now = useNow(true);
+  const seen = new Set(events.map((e) => e.type));
+  const current = STEPS.findIndex(([, type]) => !seen.has(type));
+  const at = current === -1 ? STEPS.length - 1 : current;
+  const elapsed = now - new Date(run.createdAt).getTime();
   return (
-    <div className="mt-2 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <table className="w-full text-left text-xs">
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.name} className="border-b border-zinc-100 last:border-0 dark:border-zinc-900">
-              <td className="whitespace-nowrap px-3 py-2 font-mono">{r.name}</td>
-              <td className="px-3 py-2"><Badge kind={r.ok ? 'pass' : 'fail'} /></td>
-              <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">{r.ok ? '' : r.errors?.[0] || r.failure || ''}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function EventRow({ e }: { e: TimelineEvent }) {
-  const firstLine = e.summary.split('\n')[0];
-  const rows = e.type === 'matrix' && Array.isArray(e.data) ? (e.data as MatrixRow[]) : null;
-  return (
-    <li className="relative pl-6">
-      <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-zinc-400 dark:bg-zinc-600" />
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium">{LABELS[e.type] ?? e.type}</span>
-        <span className="text-xs text-zinc-500">{secs(e.atMs)}</span>
+    <Panel className="flex flex-col gap-4 p-5">
+      <div className="flex items-center gap-3.5">
+        <Mascot pose="investigating" size={80} />
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-xs font-medium tracking-[0.08em] text-cyan">NOW</span>
+          <span className="font-mono text-base font-semibold">{STEPS[at][2]}</span>
+          <span className="text-[13px] text-subtle">{STEPS[at][1] === 'matrix' ? 'The same replay under several environments, in Chromium and WebKit.' : 'Each step appears on the timeline as soon as it is done.'}</span>
+        </div>
       </div>
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">{firstLine.length > 220 ? `${firstLine.slice(0, 220)}…` : firstLine}</p>
-      {firstLine.length > 220 && (
-        <details className="mt-0.5 text-xs text-zinc-500"><summary className="cursor-pointer">More</summary><p className="mt-1 whitespace-pre-wrap">{firstLine}</p></details>
-      )}
-      {e.type === 'understood' && typeof (e.data as { mediaObservations?: string } | undefined)?.mediaObservations === 'string' && (e.data as { mediaObservations: string }).mediaObservations.trim() !== '' && (
-        <details className="mt-1 text-xs text-zinc-600 dark:text-zinc-400" open>
-          <summary className="cursor-pointer text-zinc-500">What the recording shows</summary>
-          <p className="mt-1 whitespace-pre-wrap rounded bg-zinc-100 p-2 dark:bg-zinc-900">{(e.data as { mediaObservations: string }).mediaObservations}</p>
-        </details>
-      )}
-      {rows && <MatrixTable rows={rows} />}
-      {e.type === 'memory' && Array.isArray(e.data) && (
-        <ul className="mt-1 list-inside list-disc text-xs text-zinc-600 dark:text-zinc-400">{(e.data as { id: string; title: string; isolatedVariable: string; file: string; score: number }[]).map((h) => <li key={h.id}>{h.title} <span className="text-zinc-500">(isolated by {h.isolatedVariable}, {h.file})</span></li>)}</ul>
-      )}
-      {e.type === 'test_written' && typeof e.data === 'string' && (
-        <details className="mt-1 text-xs text-zinc-500"><summary className="cursor-pointer">Test output</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 dark:bg-zinc-900">{e.data}</pre></details>
-      )}
-    </li>
+      <ol className="m-0 flex list-none flex-col gap-1.5 p-0 font-mono text-[13px]">
+        {STEPS.map(([label, type], i) => {
+          const done = seen.has(type);
+          const isNow = i === at && !done;
+          return (
+            <li key={label} className={`flex items-center gap-2.5 ${done ? 'text-muted' : isNow ? 'font-semibold text-foreground' : 'text-faint'}`}>
+              <span className={`size-2 ${done ? 'bg-pass' : isNow ? 'border-2 border-cyan' : 'border border-dashed border-faint'}`} aria-hidden="true" />
+              {label}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="grid grid-cols-2 gap-2 border-t border-purple-800 pt-3 font-mono text-xs text-subtle">
+        <span>Tokens<br /><b className="text-[15px] text-foreground">{kilo(run.tokensUsed ?? 0) || '0'}</b> {run.tokenCap ? <span>of {kilo(run.tokenCap)} cap</span> : null}</span>
+        <span>Elapsed<br /><b className="text-[15px] text-foreground">{formatClock(elapsed)}</b> <span>usually 4 to 5 min</span></span>
+      </div>
+    </Panel>
   );
 }
 
-function DiffView({ diff }: { diff: string }) {
+function StoppedPanel({ run, owner, repo }: { run: RunView; owner: string; repo: string }) {
+  const title = run.status === 'not_reproduced' ? 'Could not reproduce' : run.status === 'stopped' ? 'Stopped' : run.status === 'no_fix' ? 'No verified fix' : 'Something went wrong';
+  const tryAgain = `/repos/${owner}/${repo}/issues/${run.issueNumber}${run.notes ? `?notes=${encodeURIComponent(run.notes)}` : ''}`;
   return (
-    <pre className="max-h-96 overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs leading-relaxed dark:border-zinc-800 dark:bg-zinc-950">
-      {diff.split('\n').map((l, i) => (
-        <span key={i} className={`block ${l.startsWith('+') && !l.startsWith('+++') ? 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-300' : l.startsWith('-') && !l.startsWith('---') ? 'bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-300' : l.startsWith('@@') ? 'text-blue-600 dark:text-blue-400' : ''}`}>{l || ' '}</span>
-      ))}
-    </pre>
+    <section className="flex flex-col gap-4 rounded-lg border border-purple-700 bg-purple-900 p-[clamp(18px,3vw,26px)]">
+      <div className="flex flex-wrap items-center gap-4">
+        <Mascot pose="failed" size={112} />
+        <div className="flex min-w-[200px] flex-1 flex-col gap-1.5">
+          <h2 className="font-mono text-xl font-semibold">{title}</h2>
+          <p className="text-muted">The agent stopped without a verified fix and has not changed anything.</p>
+        </div>
+      </div>
+      {run.reason && <p className="rounded-md border border-purple-800 bg-ink px-3.5 py-3 text-[15px]"><InlineCode text={run.reason} /></p>}
+      {run.suggestions && run.suggestions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <Eyebrow>Detail that would help</Eyebrow>
+          <ul className="m-0 flex list-disc flex-col gap-0.5 pl-[18px] text-sm text-muted">{run.suggestions.map((x) => <li key={x}>{x}</li>)}</ul>
+        </div>
+      )}
+      <Link href={tryAgain} className={`${buttonClass('primary', 'md')} self-start no-underline`}>Try again with more detail</Link>
+    </section>
   );
 }
 
-function Approval({ run, similar, onChange }: { run: RunView; similar: SimilarFix[]; onChange: () => void }) {
-  const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
-  const [error, setError] = useState('');
-  async function act(kind: 'approve' | 'reject') {
-    setBusy(kind);
-    setError('');
+function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['user'] }) {
+  const { run, events, similar, error, reload } = useRun(id);
+  const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState('');
+  const running = run?.status === 'running';
+  const now = useNow(running);
+
+  if (error && !run) return <ErrorNote message={error} />;
+  if (!run) return <p className="font-mono text-sm text-subtle">Loading…</p>;
+  const [owner, repo] = run.repo.split('/');
+  const waiting = run.status === 'fixed' && !run.rejectedAt;
+  const done = !running;
+  const attempts = events.filter((e) => e.type === 'fix_attempt').length;
+  const elapsed = (done && run.finishedAt ? new Date(run.finishedAt).getTime() : now) - new Date(run.createdAt).getTime();
+  const p = run.profile;
+  const envLine = p ? [p.engine, p.locale, p.timezoneId, p.viewport ? `${p.viewport.width}×${p.viewport.height}` : '', run.decisiveVariables?.length && run.status === 'fixed' ? `isolated: ${run.decisiveVariables.join(', ')}` : ''].filter(Boolean).join(' · ') : '';
+
+  async function stop() {
+    setStopping(true);
+    setStopError('');
     try {
-      if (kind === 'approve') await approveRun(run._id);
-      else await rejectRun(run._id);
-      onChange();
+      await stopRun(id);
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
+      setStopError((e as Error).message);
+      setStopping(false);
     }
   }
-  if (run.prUrl) {
-    return (
-      <Card>
-        <h2 className="font-semibold">Pull request opened</h2>
-        <a href={run.prUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm underline">{run.prUrl}</a>
-      </Card>
-    );
-  }
-  if (run.rejectedAt) return <Card><h2 className="font-semibold">Rejected</h2><p className="mt-1 text-sm text-zinc-500">Nothing was pushed to GitHub.</p></Card>;
-  return (
-    <Card>
-      <h2 className="text-lg font-semibold">Your approval</h2>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Nothing has been pushed to GitHub. Approving creates a branch and opens a pull request with this change and its test.</p>
-      {run.rootCause && (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold">Root cause</h3>
-          <p className="mt-1 text-sm"><code className="rounded bg-zinc-100 px-1 dark:bg-zinc-900">{run.rootCause.file}</code> {run.rootCause.rootCause}</p>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{run.rootCause.explanation}</p>
-        </div>
-      )}
-      {run.diff && <div className="mt-4"><h3 className="mb-1 text-sm font-semibold">Change</h3><DiffView diff={run.diff} /></div>}
-      {similar.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold">Similar past fixes</h3>
-          <ul className="mt-1 list-inside list-disc text-sm text-zinc-600 dark:text-zinc-400">{similar.map((f) => <li key={f.id}>{f.title} <span className="text-zinc-500">({f.repo}#{f.issueNumber}, {f.file})</span></li>)}</ul>
-        </div>
-      )}
-      {run.profile?.notEmulated?.length ? (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold">What could not be reproduced</h3>
-          <ul className="mt-1 list-inside list-disc text-sm text-zinc-600 dark:text-zinc-400">{run.profile.notEmulated.map((n) => <li key={n}>{n}</li>)}</ul>
-        </div>
-      ) : null}
-      {error && <div className="mt-4"><ErrorNote message={error} /></div>}
-      <div className="mt-5 flex gap-3">
-        <button onClick={() => act('approve')} disabled={busy !== null} className={buttonClass.primary}>{busy === 'approve' ? 'Opening pull request…' : 'Approve and open pull request'}</button>
-        <button onClick={() => act('reject')} disabled={busy !== null} className={buttonClass.secondary}>Reject</button>
-      </div>
-    </Card>
-  );
-}
-
-function Run({ id }: { id: string }) {
-  const { run, events, similar, error, reload } = useRun(id);
-  const running = run?.status === 'running';
-  if (error && !run) return <ErrorNote message={error} />;
-  if (!run) return <p className="text-sm text-zinc-500">Loading…</p>;
-  const [owner, repo] = run.repo.split('/');
 
   return (
-    <>
-      <Link href={`/repos/${owner}/${repo}`} className="text-sm text-zinc-500 hover:underline">← {run.repo}</Link>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">#{run.issueNumber} {run.title}</h1>
-        <Badge kind={run.status} />
-      </div>
-      {run.finishedAt && (
-        <p className="mt-1 text-xs text-zinc-500">
-          Took {formatDuration(new Date(run.finishedAt).getTime() - new Date(run.createdAt).getTime())}
-          {run.tokensUsed ? ` · ${Math.round(run.tokensUsed / 1000)}k tokens` : ''}
-        </p>
-      )}
-      {run.reason && run.status !== 'running' && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{run.reason}</p>}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr] [&>*]:min-w-0">
-        <Card>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Timeline</h2>
-          <ol className="mt-4 grid gap-4 border-l border-zinc-200 pl-0 dark:border-zinc-800">
-            {events.map((e) => <EventRow key={e.seq} e={e} />)}
-            {running && <li className="pl-6 text-sm text-zinc-500">Working…</li>}
-          </ol>
-        </Card>
-        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
-          {run.status === 'fixed' && <Approval run={run} similar={similar} onChange={reload} />}
-          {run.status !== 'fixed' && run.status !== 'running' && (
-            <Card>
-              <h2 className="font-semibold">Needs a human</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The agent stopped without a verified fix and has not changed anything. Add more detail about the reporter&apos;s environment and run it again.</p>
-              <Link href={`/repos/${owner}/${repo}/issues/${run.issueNumber}`} className={`${buttonClass.secondary} mt-3`}>Try again with more detail</Link>
-            </Card>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2.5">
+        <Link href={`/repos/${owner}/${repo}`} className="font-mono text-[13px] text-subtle no-underline [overflow-wrap:anywhere] hover:text-foreground">← {run.repo}</Link>
+        <h1 className="font-mono text-[clamp(20px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em] text-balance"><span className="text-hot">#{run.issueNumber}</span> {run.title}</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+          <RunStatusChip run={run} />
+          <span className="flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-xs text-muted">
+            <span>{done ? `Took ${formatDuration(elapsed)}` : `${formatDuration(elapsed)} so far`}</span>
+            {run.tokensUsed ? <span>{kilo(run.tokensUsed)} tokens</span> : null}
+            <span>{attempts > 0 ? (running ? `attempt ${attempts} of 3` : `${attempts} fix attempt${attempts === 1 ? '' : 's'}`) : done ? 'no fix attempted' : ''}</span>
+          </span>
+          {running && (
+            <button onClick={stop} disabled={stopping || run.stopRequested} className={`${buttonClass('danger', 'sm')} ml-auto`}>
+              {stopping || run.stopRequested ? 'Stopping after this step…' : 'Stop run'}
+            </button>
           )}
+        </div>
+        {stopError && <ErrorNote message={stopError} />}
+      </div>
+
+      <div className="flex flex-wrap items-start gap-6">
+        <div className="min-w-0 flex-[1.1_1_440px]">
+          <Timeline run={run} events={events} user={user} running={running} />
+        </div>
+        {/* When a fix is waiting for approval it comes first on a narrow screen: the decision is the point of the page. */}
+        <aside className={`flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 ${waiting ? 'order-first flex-[1_1_460px] lg:order-none' : 'flex-[0.8_1_340px]'}`}>
+          {waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
+          {run.status === 'fixed' && (run.prUrl || run.rejectedAt) && !waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
+          {running && <NowPanel run={run} events={events} />}
+          {done && run.status !== 'fixed' && <StoppedPanel run={run} owner={owner} repo={repo} />}
           {run.otherProblems && run.otherProblems.length > 0 && (
-            <Card>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Other problems noticed</h2>
-              <p className="mt-2 text-xs text-zinc-500">Not part of this issue, and left alone. They look like separate bugs.</p>
-              <ul className="mt-2 list-inside list-disc text-sm text-zinc-700 dark:text-zinc-300">
-                {run.otherProblems.map((o) => <li key={o.profile}><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-900">{o.profile}</code> {o.problem}</li>)}
-              </ul>
-            </Card>
+            <Panel className="flex flex-col gap-2 px-[18px] py-4">
+              <Eyebrow>Other problems noticed</Eyebrow>
+              <p className="text-[13px] text-subtle">Not part of this issue, and left alone. They look like separate bugs.</p>
+              {run.otherProblems.map((o) => (
+                <p key={o.profile} className="text-sm"><code className="rounded-[4px] bg-purple-850 px-1.5 py-px font-mono text-xs text-purple-200">{o.profile.replace(/^add-/, 'reporter + ')}</code> {o.problem}</p>
+              ))}
+            </Panel>
           )}
-          {run.profile && (
-            <Card>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Reporter environment</h2>
-              <p className="mt-2 text-sm">{run.profile.engine}, {run.profile.locale}, {run.profile.timezoneId}{run.decisiveVariables?.length ? ` · isolated: ${run.decisiveVariables.join(', ')}` : ''}</p>
-            </Card>
+          {envLine && (
+            <Panel className="flex flex-col gap-2 px-[18px] py-4">
+              <Eyebrow>Reporter environment</Eyebrow>
+              <p className="font-mono text-[13px] leading-relaxed">{envLine}</p>
+            </Panel>
           )}
-        </div>
+        </aside>
       </div>
-    </>
+    </div>
   );
 }
 
 export default function RunPage() {
   const { id } = useParams<{ id: string }>();
-  return <Shell>{() => <Run id={id} />}</Shell>;
+  return <Shell maxWidth={1240}>{(user) => <Run id={id} user={user} />}</Shell>;
 }

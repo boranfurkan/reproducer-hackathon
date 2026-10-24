@@ -144,3 +144,28 @@ export function canonicalVariable(reporter: EnvProfile, failing: EnvProfile): st
   if (!!failing.reducedMotion !== !!reporter.reducedMotion) return "reducedMotion";
   return "device";
 }
+
+/** How a matrix row relates to the reporter, for the matrix table. */
+export type RowKind = "as reported" | "neutral" | "reset one" | "added";
+
+export const rowKind = (name: string): RowKind => (name === "reporter" ? "as reported" : name === "baseline" ? "neutral" : name.startsWith("reset-") ? "reset one" : "added");
+
+const viewportText = (p: EnvProfile) => `${p.viewport.width}×${p.viewport.height}`;
+
+/** One line describing a profile: locale, timezone, viewport and anything unusual. */
+export function describeProfile(p: EnvProfile): string {
+  return [p.locale, p.timezoneId, viewportText(p), p.storageBlocked ? "storage blocked" : "", p.colorScheme === "dark" ? "dark mode" : "", p.reducedMotion ? "reduced motion" : ""].filter(Boolean).join(" · ");
+}
+
+/** What differs from the reporter in a reset or added row, in words ("en-US instead of tr-TR", "storage blocked"). Empty for other rows. */
+export function describeChange(reporter: EnvProfile, p: EnvProfile): string {
+  const parts: string[] = [];
+  if (p.engine !== reporter.engine) parts.push(`${p.engine} instead of ${reporter.engine}`);
+  if (p.locale !== reporter.locale) parts.push(`${p.locale} instead of ${reporter.locale}`);
+  if (p.timezoneId !== reporter.timezoneId) parts.push(`${p.timezoneId} instead of ${reporter.timezoneId}`);
+  if (!!p.storageBlocked !== !!reporter.storageBlocked) parts.push(p.storageBlocked ? "storage blocked" : "storage allowed");
+  if ((p.colorScheme ?? "light") !== (reporter.colorScheme ?? "light")) parts.push(`${p.colorScheme ?? "light"} mode`);
+  if (!!p.reducedMotion !== !!reporter.reducedMotion) parts.push(p.reducedMotion ? "reduced motion" : "motion allowed");
+  if (viewportText(p) !== viewportText(reporter) || p.deviceScaleFactor !== reporter.deviceScaleFactor || p.isMobile !== reporter.isMobile) parts.push(`${viewportText(p)}${p.isMobile ? "" : " desktop"} instead of ${viewportText(reporter)}`);
+  return parts.join(", ");
+}

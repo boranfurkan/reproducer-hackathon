@@ -39,6 +39,13 @@ export async function acquireWarm(): Promise<{ environmentId: string | null; rel
   return { environmentId: s.environmentId, release: (id) => { s.busy = false; if (id) rememberWarm(id); } };
 }
 
+/** What the ticket form shows: ready, being prepared, or cold (the first investigation will install Playwright, about 2 minutes). */
+export function warmState(): "warm" | "warming" | "cold" {
+  const s = state();
+  if (s.warming) return "warming";
+  return s.environmentId && Date.now() - s.lastUsed < 14 * 60_000 ? "warm" : "cold";
+}
+
 /**
  * Get a sandbox ready in the background (Playwright installed, repository cloned) while the developer fills in the ticket form.
  * Returns what happened: already warm, already warming, or a warm-up started now. Never throws.

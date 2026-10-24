@@ -7,7 +7,7 @@ import type { MediaRef } from "../media";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
-import { ablations, baselineProfile, canonicalVariable, splitByIssue, stressorProfiles } from "./profiles";
+import { ablations, baselineProfile, canonicalVariable, describeChange, describeProfile, rowKind, splitByIssue, stressorProfiles } from "./profiles";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import {
   type FileChange,
@@ -30,7 +30,8 @@ export interface Ticket {
   media?: MediaRef[];
 }
 
-export type Emit = (type: RunEventType, summary: string, data?: unknown) => void;
+/** `meta.tokens` is the running token total at the moment of the event, for the live counter on the run page. */
+export type Emit = (type: RunEventType, summary: string, data?: unknown, meta?: { tokens: number }) => void;
 
 interface ProfileResult {
   name: string;
@@ -38,6 +39,12 @@ interface ProfileResult {
   failure: string | null;
   pageText?: string;
   errors?: string[];
+  /** The same replay in every installed engine; `ok` above is the result for the profile's own engine. */
+  engines?: Record<string, { ok: boolean; failure: string | null }>;
+  /** For the matrix table: how the row relates to the reporter, what its environment is, what differs. */
+  kind?: string;
+  env?: string;
+  change?: string;
 }
 
 export interface InvestigationResult {
@@ -51,6 +58,10 @@ export interface InvestigationResult {
   focusProfile?: EnvProfile;
   /** Profiles that failed for a different reason than this issue: probably other bugs in the same repository. */
   otherProblems?: { profile: string; problem: string }[];
+  /** Matrix rows that isolate the cause (shown highlighted): the reset rows that make the reporter pass, or the added condition. */
+  isolatedRows?: string[];
+  /** When the bug could not be reproduced: details the developer could add that would help. */
+  suggestions?: string[];
   rootCause?: Pick<Proposal, "rootCause" | "file" | "explanation">;
   prTitle?: string;
   testContent?: string;
@@ -97,7 +108,7 @@ const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`
 export async function investigate(
   ticket: Ticket,
   emit: Emit,
-  opts: { environmentId?: string | null; githubToken?: string; envVars?: Record<string, string> } = {},
+  opts: { environmentId?: string | null; githubToken?: string; envVars?: Record<string, string>; shouldStop?: () => Promise<boolean> } = {},
 ): Promise<InvestigationResult> {
   const t0 = Date.now();
   const budget = new TokenBudget();
@@ -105,7 +116,7 @@ export async function investigate(
   const events: InvestigationResult["events"] = [];
   const say: Emit = (type, summary, data) => {
     events.push({ atMs: Date.now() - t0, type, summary, ...(typeof data === "string" ? { detail: data.slice(-1500) } : {}) });
-    emit(type, summary, data);
+    emit(type, summary, data, { tokens: budget.used });
   };
   const out: Omit<InvestigationResult, "tokensUsed" | "environmentId" | "sandboxCalls" | "events"> = { status: "stopped" };
   const finish = (): InvestigationResult => ({
@@ -115,6 +126,13 @@ export async function investigate(
     sandboxCalls: sandbox.calls,
     events,
   });
+
+  const stopped = (reason: string): InvestigationResult => {
+    out.status = "stopped";
+    out.reason = reason;
+    say("stopped", reason);
+    return finish();
+  };
 
   const issueText = `Title: ${ticket.title}\n\n${ticket.body}`;
 
@@ -188,9 +206,16 @@ export async function investigate(
   if (stress.length) say("hypothesis", `Extra conditions to try on top of the reporter's profile: ${stressText}`, understanding.stressors);
   const profiles = [reporter, baselineProfile(reporter), ...ablations(reporter).map((a) => a.profile).slice(0, 4), ...stress].slice(0, LIMITS.maxProfilesPerRound);
   const byName = new Map(profiles.map((pr) => [pr.name, pr]));
-  const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles }) };
+  // Every profile is replayed in every installed engine (the matrix table has a column for each).
+  const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles, engines: ["chromium", "webkit"] }) };
+  const enrich = (rows: ProfileResult[]): ProfileResult[] =>
+    rows.map((r) => {
+      const pr = byName.get(r.name);
+      return { ...r, kind: rowKind(r.name), env: pr ? describeProfile(pr) : "", change: pr ? describeChange(reporter, pr) : "" };
+    });
+  if (await opts.shouldStop?.()) return stopped("Stopped by you before the replay started.");
   const r1 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix");
-  const m1 = parseMatrix(between(r1.stdout, "@@RESULT@@", "@@END@@"), r1);
+  const m1 = enrich(parseMatrix(between(r1.stdout, "@@RESULT@@", "@@END@@"), r1));
   out.matrix = m1;
   say("matrix", `Matrix round 1 (${m1.length} profiles)\n${formatMatrix(m1)}`, m1);
 
@@ -201,6 +226,23 @@ export async function investigate(
   if (!focusRow) {
     out.status = "not_reproduced";
     out.reason = "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.";
+    // What would help next time: specific details the developer could add, written from this case.
+    try {
+      const help = await askJson<{ missing: string[] }>({
+        budget,
+        system: SYSTEM,
+        level: "low",
+        schema: { type: "object", properties: { missing: { type: "array", items: { type: "string" } } }, required: ["missing"] },
+        prompt:
+          `A bug report could not be reproduced.\n\nReport:\n${issueText}\n\nDeveloper notes about the reporter: ${ticket.notes || "(none)"}\nEnvironment that was tried: ${JSON.stringify(reporter)}\n` +
+          `Extra conditions tried: ${(understanding.stressors ?? []).map((x) => x.name).join(", ") || "none"}\nReplay results:\n${formatMatrix(m1)}\n\n` +
+          "List at most 3 specific pieces of information the developer could still add (about the reporter's device, browser, language, location, account or the exact steps) that would most help reproduce it. " +
+          "One short sentence each. If the environment above was partly guessed, say which part. Do not repeat what is already known.",
+      });
+      out.suggestions = (help.missing ?? []).slice(0, 3);
+    } catch {
+      out.suggestions = [];
+    }
     say("stopped", out.reason);
     return finish();
   }
@@ -221,6 +263,7 @@ export async function investigate(
   const decisive = addedVariable ? [addedVariable] : m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""));
   out.decisiveVariables = decisive;
   out.focusProfile = focus;
+  out.isolatedRows = addedVariable ? [focusRow.name] : decisive.map((v) => `reset-${v}`);
   say(
     "hypothesis",
     addedVariable
@@ -257,6 +300,7 @@ export async function investigate(
 
   let feedback = "";
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
+    if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
     const p = await askJson<Proposal>({
       budget,
       system: SYSTEM,
@@ -310,7 +354,7 @@ export async function investigate(
     say("fix_attempt", `Attempt ${attempt}: ${p.fixExplanation}`, { files: p.files.map((f) => f.path) });
 
     const matrixJson = between(r.stdout, "@@RESULT@@", "@@END@@");
-    const m2 = greenExit === 0 && matrixJson ? parseMatrix(matrixJson) : null;
+    const m2 = greenExit === 0 && matrixJson ? enrich(parseMatrix(matrixJson)) : null;
     if (m2) say("matrix", `Matrix after fix\n${formatMatrix(m2)}`, m2);
     if (redOk && m2 && m2.filter((x) => required.has(x.name)).every((x) => x.ok)) {
       out.status = "fixed";

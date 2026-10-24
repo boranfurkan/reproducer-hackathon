@@ -2,28 +2,33 @@
 
 import type { ReactNode } from 'react';
 import Header from './Header';
+import Mascot from './mascot/Mascot';
+import SiteFooter from './SiteFooter';
+import { Panel, buttonClass } from './ui';
+import type { SessionUser } from '@/lib/client';
 import { useSession } from '@/lib/hooks';
-import { Card } from './ui';
 
-/** Page frame: header plus a "log in first" screen for pages that need a session. */
-export default function Shell({ children }: { children: (login: string) => ReactNode }) {
+/** Page frame: header, footer and a "log in first" screen for pages that need a session. `maxWidth` is the content width in px. */
+export default function Shell({ children, maxWidth = 1120 }: { children: (user: SessionUser) => ReactNode; maxWidth?: number }) {
   const user = useSession();
   return (
-    <>
+    <div className="flex min-h-screen flex-col">
       <Header user={user ?? null} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+      <main className="mx-auto w-full flex-1 px-4 pt-6 pb-16 sm:px-8 sm:pt-10" style={{ maxWidth }}>
         {user === undefined ? (
-          <p className="text-sm text-zinc-500">Loading…</p>
+          <p className="font-mono text-sm text-subtle">Loading…</p>
         ) : user ? (
-          children(user.login)
+          children(user)
         ) : (
-          <Card>
-            <h1 className="text-xl font-semibold">Log in to continue</h1>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">ReProducer reads your repositories&apos; issues and opens pull requests for you, only after you approve.</p>
-            <a href="/api/auth/login" className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">Continue with GitHub</a>
-          </Card>
+          <Panel className="mx-auto flex max-w-xl flex-col items-center gap-4 px-6 py-12 text-center">
+            <Mascot pose="idle" size={112} />
+            <h1 className="font-mono text-xl font-semibold">Log in to continue</h1>
+            <p className="text-sm text-muted">ReProducer reads your repositories&apos; issues and opens a pull request only after you approve.</p>
+            <a href="/api/auth/login" className={`${buttonClass('primary', 'md')} no-underline`}>Log in with GitHub</a>
+          </Panel>
         )}
       </main>
-    </>
+      <SiteFooter />
+    </div>
   );
 }
