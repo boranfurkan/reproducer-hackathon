@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { MODELS, SANDBOX_NETWORK } from "../config";
 import { TokenBudget, gemini, withRetry } from "../gemini";
-import type { ExecResult, Sandbox } from "../types";
+import type { CallTiming, ExecResult, Sandbox, SandboxFile } from "../types";
+
 
 /**
  * Sandbox backed by an Antigravity managed agent.
@@ -11,6 +13,7 @@ import type { ExecResult, Sandbox } from "../types";
  */
 export class AntigravitySandbox implements Sandbox {
   environmentId: string | null;
+  readonly calls: CallTiming[] = [];
 
   constructor(
     private readonly budget: TokenBudget,
@@ -20,14 +23,28 @@ export class AntigravitySandbox implements Sandbox {
     this.environmentId = environmentId;
   }
 
-  async run(cmd: string): Promise<ExecResult> {
+  /**
+   * Run one command. `files` are written first, inside the same command, as checksummed heredocs: the agent retypes
+   * the command, so every file is verified with sha256 and the call is retried if a transcription error slipped in.
+   */
+  async run(cmd: string, label = "run", files: SandboxFile[] = []): Promise<ExecResult> {
+    const full = files.length ? `${writeFilesCommand(files)} && ${cmd}` : cmd;
+    for (let attempt = 1; ; attempt++) {
+      const r = await this.runOnce(full, attempt === 1 ? label : `${label}-retry${attempt - 1}`);
+      const bad = r.stdout.includes("PAYLOAD_BAD");
+      if (!bad || attempt >= 3) return r;
+    }
+  }
+
+  private async runOnce(cmd: string, label: string): Promise<ExecResult> {
+    const started = Date.now();
     // The exit code is appended by the wrapper, because the agent only returns stdout/stderr.
     const wrapped = `( ${cmd} ); echo "[EXIT:$?]"`;
     const r = await withRetry(() =>
       gemini().interactions.create({
         agent: MODELS.sandboxAgent,
-        stream: false,
         agent_config: { type: "antigravity" },
+        stream: false,
         input:
           "Run exactly this bash command with no changes and no other commands. " +
           "Do not explain anything.\n" + wrapped,
@@ -40,6 +57,7 @@ export class AntigravitySandbox implements Sandbox {
       }),
     );
     this.budget.add(r.usage?.total_tokens);
+    this.calls.push({ label, ms: Date.now() - started, tokens: r.usage?.total_tokens ?? 0 });
     if (r.environment_id) this.environmentId = r.environment_id;
 
     const results = (r.steps ?? []).filter((s) => s.type === "code_execution_result");
@@ -50,21 +68,9 @@ export class AntigravitySandbox implements Sandbox {
     return { code: exit ? Number(exit[1]) : -1, stdout, stderr };
   }
 
-  /**
-   * Make sure Playwright and its browsers exist in this environment. Environment ids outlive their
-   * files (an hours-old id resolved but /opt/pw was gone), so check first and install only if
-   * missing. A cold install takes ~150 s, so run this before a demo, not during it.
-   */
-  async ensureReady(): Promise<{ installed: boolean }> {
-    const probe = await this.run(
-      "test -d /opt/pw/node_modules/playwright && ls ~/.cache/ms-playwright | grep -c -E 'chromium|webkit'",
-    );
-    if (probe.code === 0 && Number(probe.stdout.trim()) >= 2) return { installed: false };
-    const r = await this.run(
-      "mkdir -p /opt/pw && cd /opt/pw && npm init -y >/dev/null 2>&1 && npm i playwright && npx playwright install --with-deps chromium webkit",
-    );
-    if (r.code !== 0) throw new Error(`Playwright install failed: ${r.stderr.slice(0, 500)}`);
-    return { installed: true };
+  /** Write files and run a command, in one call. */
+  async runWith(files: SandboxFile[], cmd: string, label?: string): Promise<ExecResult> {
+    return this.run(cmd, label, files);
   }
 
   async readFile(path: string): Promise<string> {
@@ -74,12 +80,34 @@ export class AntigravitySandbox implements Sandbox {
   }
 
   async writeFile(path: string, content: string): Promise<void> {
-    const b64 = Buffer.from(content, "utf8").toString("base64");
-    const r = await this.run(`mkdir -p "$(dirname ${JSON.stringify(path)})" && echo ${b64} | base64 -d > ${JSON.stringify(path)}`);
-    if (r.code !== 0) throw new Error(`writeFile ${path}: ${r.stderr}`);
+    const r = await this.runWith([{ path, content }], `test -f ${JSON.stringify(path)}`, "writeFile");
+    if (r.code !== 0) throw new Error(`writeFile ${path} failed: ${r.stderr}`);
   }
 
   async destroy(): Promise<void> {
     // Environments are reused between runs; nothing to tear down yet.
   }
+}
+
+/** Files may only go under /opt or /workspace, with no "..". */
+export function assertSandboxPath(path: string): void {
+  if (!/^\/(opt|workspace)\/[\w./@-]+$/.test(path) || path.includes("..")) {
+    throw new Error(`Refusing to write outside /opt or /workspace: ${path}`);
+  }
+}
+
+/** Shell snippet that writes each file from a quoted heredoc and aborts with PAYLOAD_BAD if the sha256 does not match. */
+export function writeFilesCommand(files: SandboxFile[]): string {
+  return files
+    .map((f) => {
+      assertSandboxPath(f.path);
+      const content = f.content.endsWith("\n") ? f.content : `${f.content}\n`;
+      const sha = createHash("sha256").update(content).digest("hex");
+      const tag = `__EOF_${sha.slice(0, 10)}__`;
+      return (
+        `mkdir -p "$(dirname '${f.path}')" && cat > '${f.path}' <<'${tag}'\n${content}${tag}\n` +
+        `echo '${sha}  ${f.path}' | sha256sum -c - >/dev/null 2>&1 || { echo PAYLOAD_BAD ${f.path}; exit 97; }`
+      );
+    })
+    .join("\n");
 }

@@ -19,6 +19,19 @@ export interface EnvProfile {
   notEmulated: string[];
 }
 
+export interface SandboxFile {
+  /** Absolute path inside the sandbox. Must be under /opt or /workspace. */
+  path: string;
+  content: string;
+}
+
+/** One sandbox call, for finding where the time goes. */
+export interface CallTiming {
+  label: string;
+  ms: number;
+  tokens: number;
+}
+
 export interface ExecResult {
   code: number;
   stdout: string;
@@ -29,7 +42,9 @@ export interface ExecResult {
 export interface Sandbox {
   /** Environment id for reuse across calls (null until first use). */
   readonly environmentId: string | null;
-  run(cmd: string): Promise<ExecResult>;
+  run(cmd: string, label?: string, files?: SandboxFile[]): Promise<ExecResult>;
+  /** Deliver files (as inline sources) and run a command in ONE sandbox call. */
+  runWith(files: SandboxFile[], cmd: string, label?: string): Promise<ExecResult>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   destroy(): Promise<void>;

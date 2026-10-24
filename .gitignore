@@ -42,3 +42,6 @@ next-env.d.ts
 
 # keep the template of required variables
 !.env.example
+
+# local investigation outputs
+.runs/

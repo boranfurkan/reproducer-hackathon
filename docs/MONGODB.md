@@ -2,6 +2,8 @@
 
 MongoDB Atlas is the core data store. The MongoDB bounty scores more points for using more Atlas features (confirmed by the MongoDB representative), so each feature below has a real job in the product.
 
+Cluster: Atlas **M10** (dedicated, 2 GB RAM, 10 GB storage). Automated Embedding on a dedicated cluster requires **storage auto-scaling** to be enabled.
+
 ## Collections
 
 | Collection | Contents |

@@ -1,0 +1,162 @@
+// Output shapes asked from Argon, as JSON schema plus matching TypeScript types.
+import type { EnvProfile } from "../types";
+
+export const envProfileSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    engine: { type: "string", enum: ["chromium", "webkit", "firefox"] },
+    locale: { type: "string", description: "BCP 47 tag such as tr-TR" },
+    timezoneId: { type: "string", description: "IANA zone such as Europe/Istanbul" },
+    viewport: {
+      type: "object",
+      properties: { width: { type: "integer" }, height: { type: "integer" } },
+      required: ["width", "height"],
+    },
+    deviceScaleFactor: { type: "number" },
+    isMobile: { type: "boolean" },
+    hasTouch: { type: "boolean" },
+    userAgent: { type: "string" },
+    colorScheme: { type: "string", enum: ["light", "dark"] },
+    storageBlocked: { type: "boolean" },
+    notEmulated: { type: "array", items: { type: "string" } },
+  },
+  required: ["name", "engine", "locale", "timezoneId", "viewport", "deviceScaleFactor", "isMobile", "hasTouch", "notEmulated"],
+};
+
+export interface Understanding {
+  summary: string;
+  expected: string;
+  actual: string;
+  suspectedVariables: string[];
+  profile: EnvProfile;
+}
+
+export const understandingSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    expected: { type: "string" },
+    actual: { type: "string" },
+    suspectedVariables: { type: "array", items: { type: "string" } },
+    profile: envProfileSchema,
+  },
+  required: ["summary", "expected", "actual", "suspectedVariables", "profile"],
+};
+
+export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_text" | "expect_count_min";
+
+export interface ReplayStep {
+  action: StepAction;
+  url?: string;
+  selector?: string;
+  value?: string;
+  key?: string;
+  ms?: number;
+  text?: string;
+  min?: number;
+}
+
+export interface ReplayPlan {
+  steps: ReplayStep[];
+  successCriterion: string;
+}
+
+export const replayPlanSchema = {
+  type: "object",
+  properties: {
+    steps: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["goto", "click", "fill", "press", "wait", "expect_visible", "expect_text", "expect_count_min"] },
+          url: { type: "string" },
+          selector: { type: "string" },
+          value: { type: "string" },
+          key: { type: "string" },
+          ms: { type: "integer" },
+          text: { type: "string" },
+          min: { type: "integer" },
+        },
+        required: ["action"],
+      },
+    },
+    successCriterion: { type: "string" },
+  },
+  required: ["steps", "successCriterion"],
+};
+
+export interface Diagnosis {
+  rootCause: string;
+  file: string;
+  explanation: string;
+  fixIdea: string;
+}
+
+export const diagnosisSchema = {
+  type: "object",
+  properties: {
+    rootCause: { type: "string" },
+    file: { type: "string" },
+    explanation: { type: "string" },
+    fixIdea: { type: "string" },
+  },
+  required: ["rootCause", "file", "explanation", "fixIdea"],
+};
+
+export interface FileChange {
+  path: string;
+  content: string;
+}
+
+export const fileChangesSchema = {
+  type: "object",
+  properties: {
+    files: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { path: { type: "string" }, content: { type: "string" } },
+        required: ["path", "content"],
+      },
+    },
+    explanation: { type: "string" },
+  },
+  required: ["files", "explanation"],
+};
+
+export interface FileChanges {
+  files: FileChange[];
+  explanation: string;
+}
+
+/** Root cause, the failing test and a candidate fix, produced in one model call. */
+export interface Proposal {
+  rootCause: string;
+  file: string;
+  explanation: string;
+  testContent: string;
+  files: FileChange[];
+  fixExplanation: string;
+}
+
+export const proposalSchema = {
+  type: "object",
+  properties: {
+    rootCause: { type: "string" },
+    file: { type: "string" },
+    explanation: { type: "string" },
+    testContent: { type: "string" },
+    files: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { path: { type: "string" }, content: { type: "string" } },
+        required: ["path", "content"],
+      },
+    },
+    fixExplanation: { type: "string" },
+  },
+  required: ["rootCause", "file", "explanation", "testContent", "files", "fixExplanation"],
+};

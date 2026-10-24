@@ -19,9 +19,13 @@ A developer who gets a client ticket like "category pages are empty for some cus
 | 2:20 | MongoDB: "seen this before" hit on a second bug, search facets by device, a cluster alert from Stream Processing. |
 | 2:45 | One-line close. |
 
+## Timing
+
+A warm run takes about 3 minutes (Argon about 20 s of it, sandbox about 165 s). The demo narrates while it runs; time-sensitive parts are pre-recorded and said so.
+
 ## Preparation before going on stage
 
-- Run `ensureReady()` so the sandbox has Playwright and browsers.
+- Warm the sandbox: run one investigation (the boot installs Playwright into `/opt`, about 2 minutes) and keep pinging the environment at least every 10 minutes, because `/opt` is wiped after 15 idle minutes. Pass the same environment id to the demo run.
 - Reset the demo repo to the buggy state (tag `v0-buggy`).
 - Pre-warm one run so API paths are warm.
 - Start the Stream Processing processor only now, stop it after.

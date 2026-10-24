@@ -39,6 +39,8 @@ Long model calls use `background=True` on the Interactions API, so the orchestra
 ### Sandbox
 Interface in `types.ts`. Primary implementation drives an Antigravity managed agent as a remote shell: one exact command per call, output returned untouched. This is fast (about 22 s and 12k tokens per call measured) compared with free-form tasks (about 2 min and 70k tokens).
 
+Sandbox rules learned by measurement: heavy files go in `/opt` (calls get slower with bytes under `/workspace`), `/opt` is wiped after 15 idle minutes, and files are sent as checksummed heredocs. See DECISIONS D-12 to D-14.
+
 Fallback implementation: a Docker runner behind the same interface. Only built if Antigravity blocks us.
 
 ### Browser replay

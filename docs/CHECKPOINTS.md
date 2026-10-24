@@ -10,20 +10,23 @@ Submission closes **Sunday 25 October 2026, 12:00 London time**. Aim to submit b
 - [x] Exit codes and output parsed correctly by `AntigravitySandbox`
 - [x] Demo repo exists with bug 1 and issue #1
 - [x] App scaffolded, typechecks, lint clean
-- [ ] Sandbox persistence question answered (Q-01)
-- [ ] MongoDB Atlas cluster created, `MONGODB_URI` set
-- [ ] GitHub OAuth app created
+- [x] Sandbox persistence question answered (D-11: only `/workspace` persists)
+- [x] MongoDB Atlas cluster created (M10), `MONGODB_URI` set and connection verified
+- [x] GitHub OAuth app created, credentials in `.env.local`
+- [ ] Atlas storage auto-scaling enabled (needed for Automated Embedding)
 
 ## G1. Vertical slice (Saturday midday)
 
 Bug 1 goes from issue text to a green fix end to end, with no UI.
 
-- [ ] Understand step returns a profile for "Turkish phone, Chrome"
-- [ ] Replay under the reporter profile fails, controls pass
-- [ ] Matrix isolates `locale` as the variable
-- [ ] Failing test written, fails on reporter profile only
-- [ ] Fix applied, matrix all green
+- [x] Understand step returns a profile for "Turkish phone, Chrome"
+- [x] Replay under the reporter profile fails, controls pass
+- [x] Matrix isolates `locale` as the variable
+- [x] Failing test written, fails on reporter profile only
+- [x] Fix applied, matrix all green
 - [ ] Events written to MongoDB
+
+Measured on 24 Oct (bug 1, terminal runner): warm 187 s, cold 269 s, about 67k tokens.
 
 If this is not green by midday, stop adding features until it is.
 
