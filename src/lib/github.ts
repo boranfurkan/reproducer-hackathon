@@ -149,6 +149,13 @@ export async function pushToBranch(input: { token: string; owner: string; repo: 
   return { sha: commit.sha, url: commit.html_url };
 }
 
+/** A comment on an issue (the developer's reply to the reporter, posted only after they approve it). */
+export async function commentOnIssue(token: string, owner: string, repo: string, number: number, body: string, baseUrl?: string): Promise<{ url: string }> {
+  const gh = (await octokitFor(token, baseUrl)).rest;
+  const { data } = await gh.issues.createComment({ owner, repo, issue_number: number, body: `${body}\n\n${BOT_MARKER}` });
+  return { url: data.html_url };
+}
+
 export async function commentOnPr(token: string, owner: string, repo: string, number: number, body: string, baseUrl?: string): Promise<void> {
   const gh = (await octokitFor(token, baseUrl)).rest;
   await gh.issues.createComment({ owner, repo, issue_number: number, body: `${body}\n\n${BOT_MARKER}` });

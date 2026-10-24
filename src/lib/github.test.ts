@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { BOT_MARKER, commentOnPr, listPrFeedback, pushToBranch } from "./github";
+import { BOT_MARKER, commentOnIssue, commentOnPr, listPrFeedback, pushToBranch } from "./github";
 
 // A local stand-in for the GitHub API: records every call, answers just enough for the calls under test.
 async function mock(routes: Record<string, (body: unknown) => unknown>) {
@@ -80,6 +80,19 @@ test("the reply to the reviewer carries the marker", async () => {
   try {
     await commentOnPr("t", "o", "r", 5, "Changed it.", gh.baseUrl);
     assert.match(body!.body, /Changed it\./);
+    assert.ok(body!.body.includes(BOT_MARKER));
+  } finally {
+    gh.close();
+  }
+});
+
+test("a reply to the reporter is posted on the issue, with the marker, and returns the comment link", async () => {
+  let body: { body: string } | undefined;
+  const gh = await mock({ "POST /repos/o/r/issues/3/comments": (b) => ((body = b as typeof body), { id: 9, html_url: "https://example.test/c9" }) });
+  try {
+    const r = await commentOnIssue("t", "o", "r", 3, "Could you tell me your browser?", gh.baseUrl);
+    assert.equal(r.url, "https://example.test/c9");
+    assert.match(body!.body, /Could you tell me your browser\?/);
     assert.ok(body!.body.includes(BOT_MARKER));
   } finally {
     gh.close();

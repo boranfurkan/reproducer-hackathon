@@ -108,6 +108,7 @@ export interface RunView {
   prReviewState?: string | null;
   prMergedAt?: string;
   revisions?: number;
+  replyDraft?: { text: string; postedAt?: string; url?: string };
   revision?: {
     status: 'running' | 'ready' | 'failed' | 'pushed' | 'discarded';
     requestedAt: string;

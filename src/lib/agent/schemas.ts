@@ -64,6 +64,8 @@ export interface Understanding {
   stressors: Stressor[];
   /** What the attached recording or screenshot shows: the steps, the symptom and environment clues. Empty without media. */
   mediaObservations: string;
+  /** Key moments of a recording with their time ("0:07"): what happens and what it tells about the environment. Empty without a video. */
+  mediaMoments: { at: string; what: string }[];
   expected: string;
   actual: string;
   suspectedVariables: string[];
@@ -79,9 +81,10 @@ export const understandingSchema = {
     suspectedVariables: { type: "array", items: { type: "string" } },
     stressors: { type: "array", items: stressorSchema },
     mediaObservations: { type: "string" },
+    mediaMoments: { type: "array", items: { type: "object", properties: { at: { type: "string" }, what: { type: "string" } }, required: ["at", "what"] } },
     profile: envProfileSchema,
   },
-  required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "mediaObservations", "profile"],
+  required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "mediaObservations", "mediaMoments", "profile"],
 };
 
 export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_text" | "expect_count_min";

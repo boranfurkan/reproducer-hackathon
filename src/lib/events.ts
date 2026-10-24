@@ -90,6 +90,8 @@ export interface RunDoc {
     commitUrl?: string;
   };
   revisions?: number;
+  /** A drafted reply to the reporter when the bug could not be reproduced; `postedAt` is set when the developer posted it. */
+  replyDraft?: { text: string; postedAt?: Date; url?: string };
   approvedAt?: Date;
   rejectedAt?: Date;
   sandboxCalls?: { label: string; ms: number; tokens: number }[];

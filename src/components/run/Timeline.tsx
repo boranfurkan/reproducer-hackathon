@@ -15,7 +15,7 @@ interface Entry {
   tone?: 'default' | 'live' | 'pass' | 'fail';
   chips?: string[];
   attach?: string[];
-  observ?: { title: string; text: string };
+  observ?: { title: string; text: string; moments?: { at: string; what: string }[] };
   list?: { title: string; sub: string }[];
   matrix?: { rows: MatrixRow[]; after: boolean };
   out?: { text: string; tone: 'fail' | 'pass' };
@@ -47,8 +47,9 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         out.push({ ...base, who: 'note', label: 'Sandbox', summary: line });
         break;
       case 'understood': {
-        const media = (e.data as { mediaObservations?: string } | undefined)?.mediaObservations?.trim();
-        out.push({ ...base, who: 'agent', label: 'Read the report', summary: line, ...(media ? { observ: { title: hasImage && !(run.attachments ?? []).some((a) => a.kind === 'video') ? 'What the screenshot shows' : 'What the recording shows', text: media } } : {}) });
+        const data = e.data as { mediaObservations?: string; mediaMoments?: { at: string; what: string }[] } | undefined;
+        const media = data?.mediaObservations?.trim();
+        out.push({ ...base, who: 'agent', label: 'Read the report', summary: line, ...(media ? { observ: { title: hasImage && !(run.attachments ?? []).some((a) => a.kind === 'video') ? 'What the screenshot shows' : 'What the recording shows', text: media, moments: data?.mediaMoments?.filter((m) => m.at && m.what).slice(0, 6) } } : {}) });
         break;
       }
       case 'profile': {
@@ -162,6 +163,13 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
               {e.observ && (
                 <details open className="text-sm">
                   <summary className="cursor-pointer font-mono text-xs font-medium text-subtle">{e.observ.title}</summary>
+                  {e.observ.moments && e.observ.moments.length > 0 && (
+                    <ol className="m-0 mt-1.5 flex list-none flex-col gap-1 rounded-md bg-ink p-2.5">
+                      {e.observ.moments.map((m) => (
+                        <li key={m.at + m.what} className="flex gap-3 text-sm text-muted"><span className="w-10 flex-none font-mono text-xs text-hot">{m.at}</span>{m.what}</li>
+                      ))}
+                    </ol>
+                  )}
                   <p className="mt-1.5 rounded-md bg-ink px-3 py-2.5 text-muted">{e.observ.text}</p>
                 </details>
               )}

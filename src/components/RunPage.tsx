@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import Mascot from './mascot/Mascot';
 import ApprovalCard from './run/ApprovalCard';
+import ReplyDraft from './run/ReplyDraft';
 import RevisionPanel from './run/RevisionPanel';
 import Timeline from './run/Timeline';
 import { Busy, RunPageSkeleton } from './loaders';
@@ -151,6 +152,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
           {run.prUrl && <RevisionPanel run={run} onChange={reload} />}
           {running && <NowPanel run={run} events={events} />}
           {done && run.status !== 'fixed' && <StoppedPanel run={run} owner={owner} repo={repo} />}
+          {run.status === 'not_reproduced' && <ReplyDraft run={run} onChange={reload} />}
           {run.otherProblems && run.otherProblems.length > 0 && (
             <Panel className="flex flex-col gap-2 px-[18px] py-4">
               <Eyebrow>Other problems noticed</Eyebrow>

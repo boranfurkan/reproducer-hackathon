@@ -52,6 +52,10 @@ Helpers in `client.ts`: `initials`, `diffStats`, `splitDiff`, `formatDuration`, 
 - **Approval card**: `rootCause` (one sentence, `explanation` below it), `diff` (the test file is shown separately from `testContent`), `profile.notEmulated`, `similar`, `matrix` for the "N of M" chip, `otherProblems`.
 - **Could not reproduce**: `reason` and `suggestions` (details that would help, written by Argon from the case).
 
+## When it could not reproduce
+
+`run/ReplyDraft.tsx` (side column of a not-reproduced run): "Draft a reply" writes a comment for the issue, the developer edits it, "Post on #N" posts it (hook `replyToReporter(id, 'draft' | 'post', text)`). The recording's key moments (`mediaMoments`) appear inside the "What the recording shows" fold of the first entry.
+
 ## After the pull request is open
 
 `run/RevisionPanel.tsx` (side column): when reviewers have commented, "Address review feedback" starts a revision (states: running with the live thinking line, ready with the reply to the reviewer and the new diff, pushed, failed). "Push to the pull request" is the only action that writes to GitHub; "Discard" drops it. Hook: `reviseRun(id, 'start' | 'push' | 'discard')`. The run's `prState`, `prReviews`, `prComments` and `revision` come with the run.

@@ -123,8 +123,9 @@ export async function investigate(
       `Bug report from a GitHub issue:\n\n${issueText}\n\nDeveloper notes about the reporter's environment:\n${ticket.notes || "(none)"}\n\n` +
       (ticket.media?.length
         ? "A screen recording or screenshot from the reporter is attached. Watch it: in mediaObservations list the exact steps the user takes, what they see that is wrong, and every clue about their environment " +
-          "(interface language, screen size and orientation, device type, browser chrome). Treat those clues as evidence when you build the profile. "
-        : 'Leave mediaObservations as an empty string (no recording was attached). ') +
+          "(interface language, screen size and orientation, device type, browser chrome). Treat those clues as evidence when you build the profile. " +
+          "For a video, also fill mediaMoments: up to 6 key moments in order, each with its time in m:ss (at) and what happens or what it reveals (what), for example 0:07 the category list is empty, 0:12 the language switch shows Turkish. For a screenshot leave mediaMoments empty. "
+        : 'Leave mediaObservations as an empty string and mediaMoments empty (no recording was attached). ') +
       "Interpret the report and rebuild the reporter's environment as a profile. Fill in only what the report states or strongly implies; " +
       "use sensible concrete values for the rest (a Turkish Chrome user on an Android phone has locale tr-TR, timezone Europe/Istanbul, a phone-sized viewport with touch). " +
       'Name the profile "reporter". In notEmulated list what Playwright cannot reproduce about this device (real GPU, OEM browser build, real network...). ' +

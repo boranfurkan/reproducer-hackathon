@@ -239,6 +239,11 @@ export async function stopRun(id: string): Promise<void> {
   await api(`/api/runs/${id}/stop`, { method: 'POST' });
 }
 
+/** A drafted reply to the reporter (for a bug that could not be reproduced): `draft` writes it, `post` comments on the issue (the developer's click). */
+export async function replyToReporter(id: string, action: 'draft' | 'post', text?: string): Promise<{ text?: string; url?: string }> {
+  return api(`/api/runs/${id}/reply`, { method: 'POST', body: JSON.stringify({ action, text }) });
+}
+
 /** A question about the memory, answered by the model calling functions that read MongoDB. `calls` is what it looked at. */
 export async function askMemory(question: string): Promise<{ answer: string; calls: { tool: string; args: Record<string, unknown>; found: number }[]; tokens: number }> {
   return api('/api/ask', { method: 'POST', body: JSON.stringify({ question }) });
