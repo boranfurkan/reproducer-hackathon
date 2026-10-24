@@ -9,7 +9,8 @@
     "lint": "eslint",
     "investigate": "tsx --env-file=.env.local scripts/investigate.ts",
     "typecheck": "tsc --noEmit",
-    "db:setup": "tsx --env-file=.env.local scripts/setup-db.ts"
+    "db:setup": "tsx --env-file=.env.local scripts/setup-db.ts",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@google/genai": "^2.31.0",

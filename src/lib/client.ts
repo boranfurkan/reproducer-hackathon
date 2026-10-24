@@ -74,6 +74,7 @@ export interface RunView {
   prNumber?: number;
   rejectedAt?: string;
   issueUrl?: string;
+  otherProblems?: { profile: string; problem: string }[];
 }
 
 export interface MediaItem {

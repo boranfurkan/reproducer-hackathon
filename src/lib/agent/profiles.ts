@@ -106,3 +106,25 @@ export function stressorProfiles(reporter: EnvProfile, stressors: Stressor[], ma
   }
   return out;
 }
+
+/** The part of a replay result that decides whether two failures are the same problem. */
+export interface ReplayRow {
+  name: string;
+  ok: boolean;
+  failure: string | null;
+  errors?: string[];
+}
+
+/** What went wrong in a profile as a comparable string: the failed step plus the first console error. */
+export const failureSignature = (r: ReplayRow): string => `${r.failure ?? ""}|${r.errors?.[0] ?? ""}`;
+
+/**
+ * A repository can hold several bugs, and the extra-condition profiles find them. After a fix, only these profiles must pass:
+ * the ones that passed before, the focus, and the ones that failed before in the same way as the focus (same failed step, same first console error).
+ * The others failed for a different reason: they are other problems, reported but not required and not to be fixed in this change.
+ */
+export function splitByIssue(round1: ReplayRow[], focusName: string): { required: Set<string>; unrelated: ReplayRow[] } {
+  const focus = round1.find((r) => r.name === focusName);
+  const required = new Set(round1.filter((r) => r.ok || r.name === focusName || (focus !== undefined && failureSignature(r) === failureSignature(focus))).map((r) => r.name));
+  return { required, unrelated: round1.filter((r) => !required.has(r.name)) };
+}

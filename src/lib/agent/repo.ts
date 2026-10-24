@@ -17,7 +17,8 @@ const MAX_TOTAL = 120_000;
 export async function readRepoDigest(repo: RepoRef, token?: string): Promise<RepoDigest> {
   // octokit is ESM-only; a dynamic import also works when this file is loaded as CommonJS (tsx scripts).
   const { Octokit } = await import("octokit");
-  const octokit = new Octokit(token ? { auth: token } : {});
+  // Fail fast on a GitHub rate limit instead of letting the throttling plugin hold the request for up to an hour.
+  const octokit = new Octokit({ ...(token ? { auth: token } : {}), throttle: { onRateLimit: () => false, onSecondaryRateLimit: () => false } });
   const { data: info } = await octokit.rest.repos.get({ owner: repo.owner, repo: repo.name });
   const { data: tree } = await octokit.rest.git.getTree({
     owner: repo.owner,
@@ -31,8 +32,16 @@ export async function readRepoDigest(repo: RepoRef, token?: string): Promise<Rep
   let truncated = false;
   for (const n of wanted) {
     if (total + (n.size ?? 0) > MAX_TOTAL) { truncated = true; break; }
-    const { data } = await octokit.rest.git.getBlob({ owner: repo.owner, repo: repo.name, file_sha: n.sha! });
-    const content = Buffer.from(data.content, "base64").toString("utf8");
+    let content: string;
+    if (token) {
+      const { data } = await octokit.rest.git.getBlob({ owner: repo.owner, repo: repo.name, file_sha: n.sha! });
+      content = Buffer.from(data.content, "base64").toString("utf8");
+    } else {
+      // Public repository without a token: raw.githubusercontent.com does not count against the 60 requests per hour API limit.
+      const res = await fetch(`https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${info.default_branch}/${n.path}`);
+      if (!res.ok) throw new Error(`Could not read ${n.path} (${res.status})`);
+      content = await res.text();
+    }
     files.push({ path: n.path!, content });
     total += content.length;
   }

@@ -192,6 +192,15 @@ function Run({ id }: { id: string }) {
               <Link href={`/repos/${owner}/${repo}/issues/${run.issueNumber}`} className={`${buttonClass.secondary} mt-3`}>Try again with more detail</Link>
             </Card>
           )}
+          {run.otherProblems && run.otherProblems.length > 0 && (
+            <Card>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Other problems noticed</h2>
+              <p className="mt-2 text-xs text-zinc-500">Not part of this issue, and left alone. They look like separate bugs.</p>
+              <ul className="mt-2 list-inside list-disc text-sm text-zinc-700 dark:text-zinc-300">
+                {run.otherProblems.map((o) => <li key={o.profile}><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-900">{o.profile}</code> {o.problem}</li>)}
+              </ul>
+            </Card>
+          )}
           {run.profile && (
             <Card>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Reporter environment</h2>

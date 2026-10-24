@@ -20,7 +20,9 @@ async function main() {
   const stamp = () => `[${String(Math.round((Date.now() - t0) / 1000)).padStart(3)}s]`;
 
   const { Octokit } = await import("octokit");
-  const octokit = new Octokit();
+  // Optional: GITHUB_TOKEN raises the GitHub API limit from 60 to 5,000 requests per hour. Reads only.
+  const githubToken = process.env.GITHUB_TOKEN || undefined;
+  const octokit = new Octokit(githubToken ? { auth: githubToken } : {});
   const { data: issue } = await octokit.rest.issues.get({ owner: repo.owner, repo: repo.name, issue_number: issueNumber });
 
   let media;
@@ -44,7 +46,7 @@ async function main() {
         console.log(`${stamp()} ${type.toUpperCase().padEnd(18)} ${summary}`);
         record?.emit(type, summary, data);
       },
-      { environmentId: flag("--env") ?? null },
+      { environmentId: flag("--env") ?? null, githubToken },
     );
   } catch (e) {
     await record?.fail(e);

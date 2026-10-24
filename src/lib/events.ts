@@ -28,6 +28,8 @@ export interface RunDoc {
   profile?: EnvProfile;
   matrix?: { name: string; ok: boolean; failure: string | null }[];
   understandingSummary?: string;
+  /** Other failing profiles seen while investigating (probably other bugs), shown on the run page and in the PR text. */
+  otherProblems?: { profile: string; problem: string }[];
   /** What the pull request will contain. */
   testContent?: string;
   fixFiles?: { path: string; content: string }[];
@@ -156,6 +158,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           profile: r.understanding?.profile,
           matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
           understandingSummary: r.understanding?.summary,
+          otherProblems: r.otherProblems,
           testContent: r.testContent,
           fixFiles: r.fixFiles,
           sandboxCalls: r.sandboxCalls,

@@ -7,7 +7,7 @@ import type { MediaRef } from "../media";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
-import { ablations, baselineProfile, stressorProfiles } from "./profiles";
+import { ablations, baselineProfile, splitByIssue, stressorProfiles } from "./profiles";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import {
   type FileChange,
@@ -49,6 +49,8 @@ export interface InvestigationResult {
   decisiveVariables?: string[];
   /** The profile under which the bug reproduced (the reporter's, or the reporter plus one extra condition). */
   focusProfile?: EnvProfile;
+  /** Profiles that failed for a different reason than this issue: probably other bugs in the same repository. */
+  otherProblems?: { profile: string; problem: string }[];
   rootCause?: Pick<Proposal, "rootCause" | "file" | "explanation">;
   testContent?: string;
   fixFiles?: FileChange[];
@@ -167,7 +169,7 @@ export async function investigate(
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nInterpretation: ${understanding.summary}\n${understanding.mediaObservations ? `What the reporter's recording shows: ${understanding.mediaObservations}\n` : ""}Expected: ${understanding.expected}\nActual: ${understanding.actual}\n\n` +
         "Write a replay plan for a headless browser that reaches the place where the bug shows and ends with assertions that describe the CORRECT behaviour, so the plan fails when the bug is present. " +
         "Actions: goto (url relative to the site root, hash routes allowed), click, fill, press, wait, expect_visible, expect_text, expect_count_min. " +
-        "Use selectors that exist in the source (prefer data-testid). Keep it short. " +
+        "Use selectors that exist in the source (prefer data-testid). Keep it short. Always fill successCriterion with one sentence saying what the final assertions check. " +
         "The same plan is replayed under many locales, timezones and devices, so every assertion must hold in ALL of them when the app is correct: " +
         "never rely on words, month names or date formats of one language. expect_text accepts a regular expression written as /pattern/ (for example /\\b5\\b/ to check that a day number is 5); prefer that for dates, numbers and prices.",
     });
@@ -202,6 +204,17 @@ export async function investigate(
     return finish();
   }
   const focus = byName.get(focusRow.name) ?? reporter;
+  // A repository can hold several bugs. A profile that failed in round 1 for a different reason than the focus (another failed step or another
+  // console error) belongs to a different problem: it is reported, not required to pass, and the model is told not to fix it.
+  const { required, unrelated } = splitByIssue(m1, focusRow.name);
+  out.otherProblems = unrelated.map((r) => ({ profile: r.name, problem: r.errors?.[0] || r.failure || "fails" }));
+  if (unrelated.length) {
+    say(
+      "hypothesis",
+      `Other problems seen while investigating, not part of this issue: ${unrelated.map((r) => `${r.name} (${r.errors?.[0] || r.failure || "fails"})`).join("; ")}`,
+      unrelated,
+    );
+  }
   const decisive =
     focusRow.name === "reporter"
       ? m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""))
@@ -251,7 +264,7 @@ export async function investigate(
       schema: proposalSchema,
       prompt:
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
-        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.${pastText}\n\n` +
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
         "Do three things.\n" +
         "1. Find the root cause: the file, and exactly why only this environment is affected.\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +
@@ -298,7 +311,7 @@ export async function investigate(
     const matrixJson = between(r.stdout, "@@RESULT@@", "@@END@@");
     const m2 = greenExit === 0 && matrixJson ? parseMatrix(matrixJson) : null;
     if (m2) say("matrix", `Matrix after fix\n${formatMatrix(m2)}`, m2);
-    if (redOk && m2 && m2.every((x) => x.ok)) {
+    if (redOk && m2 && m2.filter((x) => required.has(x.name)).every((x) => x.ok)) {
       out.status = "fixed";
       out.matrix = m2;
       out.testContent = p.testContent;
@@ -311,7 +324,7 @@ export async function investigate(
     feedback = !redOk
       ? `The test must fail on the reporter profile and pass on the default profile before the fix (1 failed, 1 passed). Output before the fix:\n${red.slice(-1200)}`
       : m2
-        ? `Tests pass but some profiles still fail:\n${formatMatrix(m2)}`
+        ? `Tests pass but some profiles that must pass still fail:\n${formatMatrix(m2.filter((x) => required.has(x.name)))}`
         : `After the fix the tests still fail:\n${green.slice(-1200)}`;
   }
   out.status = "no_fix";

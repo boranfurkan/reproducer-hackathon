@@ -49,6 +49,10 @@ export async function buildPrBody(run: RunDoc, issueNumber: number): Promise<str
     "",
     p?.notEmulated?.length ? `Not emulated: ${p.notEmulated.join("; ")}.` : "",
     "",
+    run.otherProblems?.length
+      ? `## Not part of this change\nWhile investigating, other environments failed for a different reason. They are probably separate bugs and were left alone:\n${run.otherProblems.map((o) => `- ${o.profile}: ${o.problem}`).join("\n")}`
+      : "",
+    "",
     "Opened by ReProducer after a developer approved the change.",
   ]
     .filter((l, i, all) => !(l === "" && all[i - 1] === ""))

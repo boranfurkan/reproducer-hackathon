@@ -27,6 +27,15 @@ The demo does not have to be live: a screen recording, sped up, is acceptable. T
 
 A warm run takes about 3 minutes (Argon about 20 s of it, sandbox about 165 s). The demo narrates while it runs; time-sensitive parts are pre-recorded and said so.
 
+## Suggested order of the recorded runs
+
+1. Issue #1 (Turkish category pages): the straightforward case, reporter's own environment.
+2. Issue #4 (search finds nothing for Turkish customers): the timeline shows "Seen something similar before: Category pages empty for some customers" (memory from run 1), and a stronger first guess.
+3. Issue #2 (blank page): the reporter's profile passes; only an added condition (blocked storage) reproduces it. This is the best illustration of why the matrix tries conditions the report never mentioned.
+4. Issue #3 (wrong pickup day): timezone, with a recording attached to show the video input.
+
+Show the dashboard last: the memory facets ("what it has learned") and, if Stream Processing is running, a shared-bug alert.
+
 ## Preparation before going on stage
 
 - Warm the sandbox: run one investigation (the boot installs Playwright into `/opt`, about 2 minutes) and keep pinging the environment at least every 10 minutes, because `/opt` is wiped after 15 idle minutes. Pass the same environment id to the demo run.

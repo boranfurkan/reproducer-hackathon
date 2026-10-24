@@ -50,6 +50,18 @@ Using the real matrix harness against the demo shop on a local server:
 
 The demo repo's Playwright suite (4 tests) passes in the default environment.
 
+## Bug 4: search finds nothing for Turkish customers (pushed, issue #4)
+
+A deliberate cousin of bug 1, so that the memory has something to recall.
+
+- Code: `src/search.js` lower-cases the query and the titles with `toLocaleLowerCase(navigator.language)`. In Turkish and Azerbaijani a capital `I` becomes a dotless `ı`, so typing `SILK ROAD` searches for `sılk road` and finds nothing.
+- Issue #4: "Search shows no results for some customers" (a customer in Turkey, she types titles in capitals).
+- Notes to enter: `Chrome on a Windows laptop, language Turkish`.
+- Matrix: the Turkish profile fails, so does Azerbaijani; English and German pass (verified locally with the harness, Chromium and WebKit).
+- Fix: compare with a locale-independent lower-casing (`toLowerCase()`) or `localeCompare` with an explicit locale.
+- Demo use: run issue #1 first (its fix is stored in memory), then #4. The timeline should show "Seen something similar before: Category pages empty for some customers".
+- Tag `v2-four-bugs` marks the repo with all four bugs.
+
 ## Results of the agent on these bugs (24 Oct, new key, cold then warm sandbox)
 
 | Issue | Reporter profile | What found it | Result |
