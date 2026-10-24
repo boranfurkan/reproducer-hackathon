@@ -73,6 +73,8 @@ Warm sandbox, terminal runner, about 40 s boot, one fix attempt each, diffs cont
 | 2 blank page | iPhone in-app browser, en-GB | **reporter passes**; only the stressor "storage blocked" fails (`The operation is insecure`) | 5 min | 81k |
 | 3 wrong day | Windows laptop en-US; Argon chose a US timezone | reporter fails; resetting the timezone fixes it | 5 min | 85k |
 
+Second batch (24 Oct, 22:04 to 22:21, issue 1 driven by a screenshot instead of a recording, Argon as the sandbox agent): 4 of 4 fixed on the first attempt, 77k to 80k tokens, diffs only the fix and the test. Counting every run made after the final success rule (D-24): #1 three runs, #2 three, #3 three, #4 two, all verified on the first attempt (11 of 11). Before D-24, one run needed a second attempt because it was pulled into fixing another bug.
+
 Other problems noticed and left alone: while fixing 1 and 4, the "storage blocked" profile also failed with `The operation is insecure` (that is bug 2). The agent reported it ("Other problems noticed") and did not touch `src/prefs.js`.
 
 Memory: runs 2, 3 and 4 each showed "Seen something similar before" with the earlier fixes. The hits are hints; for bug 2 the recalled category fix was only loosely related and Argon correctly ignored it.

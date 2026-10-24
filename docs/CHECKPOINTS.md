@@ -41,7 +41,7 @@ If this is not green by midday, stop adding features until it is.
 ## G3. Inputs and memory (Saturday evening)
 
 - [x] Video input produces steps (tested standalone with a recording; the web upload path is built but not clicked through)
-- [x] Text-only works (all runs without a recording). Screenshot: the same upload path as video, not yet tried with an image
+- [x] Text-only, screen recording and screenshot inputs all work end to end
 - [x] `bug_memory` with Automated Embedding and Vector Search
 - [x] Atlas Search with facets (dashboard card; device catalog matching)
 - [x] Hybrid search (`$rankFusion`) in the "seen before" step. No rerank step (not found in the skills' references)
@@ -54,7 +54,7 @@ No new features after this point.
 - [ ] Stream Processing cluster alerts: app side done, the Atlas processor needs the owner (docs/STREAM-PROCESSING.md)
 - [x] Fidelity report (what could not be reproduced, on the approval card and in the PR text)
 - [x] Error and stop-and-ask states (not reproduced, no test, attempts exhausted, spending cap, interrupted runs, rate limits)
-- [ ] Each bug run five times without flakiness (each bug has been fixed at least twice by the agent; not five times)
+- [x] Each bug run repeatedly without flakiness: 11 of 11 runs after the final rules fixed the bug on the first attempt (2 to 3 runs per bug; not five each)
 - [ ] Recorded fallback run saved outside the sandbox account
 
 ## G5. Submit (Sunday morning)

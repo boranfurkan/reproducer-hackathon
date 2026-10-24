@@ -28,7 +28,7 @@ Models and agents used, and how:
 
 Real verification loop: failing test on the reporter's environment before the change, passing after, existing tests green, all required environments pass. Human control: the pull request is only opened after the developer clicks Approve; nothing is pushed before that.
 
-Measured: all four demo bugs were fixed end to end by the agent in 3 to 6 minutes, 70k to 110k tokens each. **[re-run and update these numbers with the final version]**
+Measured on 24 October: all four demo bugs were fixed end to end by the agent on the first attempt, in about 4 to 5 minutes (a cold sandbox adds about 2), 77k to 95k tokens each, in 11 of 11 runs made with the final rules; the inputs tried were text only, a screen recording and a screenshot.
 
 ## Agents That Ship
 
