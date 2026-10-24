@@ -2,6 +2,7 @@
 import { seedDevices } from "../src/lib/devices";
 import { ensureMemoryIndexes } from "../src/lib/memory";
 import { COLLECTIONS, closeMongo, db } from "../src/lib/mongo";
+import { ttlIndexes, validators } from "../src/lib/schema";
 
 async function main() {
   const database = await db();
@@ -25,6 +26,14 @@ async function main() {
 
   // Pull request history of a run (opened, review activity, merged, closed): read per run, newest last.
   await database.collection("pr_events").createIndex({ runId: 1, at: 1 }, { name: "pr_run_time" });
+
+  // Schema validation (moderate: documents that predate it stay valid) and expiry of data that is only useful while it is recent.
+  for (const [name, validator] of Object.entries(validators)) {
+    await database.command({ collMod: name, validator: { $jsonSchema: validator }, validationLevel: "moderate", validationAction: "error" });
+  }
+  for (const t of ttlIndexes) {
+    await database.collection(t.collection).createIndex({ [t.field]: 1 }, { expireAfterSeconds: t.days * 86_400, name: t.name });
+  }
 
   const out: Record<string, string[]> = {};
   for (const name of COLLECTIONS) out[name] = (await database.collection(name).indexes()).map((i) => i.name ?? "?");
