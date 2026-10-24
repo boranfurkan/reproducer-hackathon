@@ -176,6 +176,8 @@ export interface Proposal {
   rootCause: string;
   file: string;
   explanation: string;
+  /** Short imperative pull request title, for example "Use locale-independent upper-casing for category keys". */
+  prTitle: string;
   testContent: string;
   files: FileChange[];
   fixExplanation: string;
@@ -187,6 +189,7 @@ export const proposalSchema = {
     rootCause: { type: "string" },
     file: { type: "string" },
     explanation: { type: "string" },
+    prTitle: { type: "string" },
     testContent: { type: "string" },
     files: {
       type: "array",
@@ -198,5 +201,5 @@ export const proposalSchema = {
     },
     fixExplanation: { type: "string" },
   },
-  required: ["rootCause", "file", "explanation", "testContent", "files", "fixExplanation"],
+  required: ["rootCause", "file", "explanation", "prTitle", "testContent", "files", "fixExplanation"],
 };

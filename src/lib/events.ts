@@ -31,6 +31,8 @@ export interface RunDoc {
   /** Other failing profiles seen while investigating (probably other bugs), shown on the run page and in the PR text. */
   otherProblems?: { profile: string; problem: string }[];
   /** What the pull request will contain. */
+  /** Short pull request title written by the model. */
+  prTitle?: string;
   testContent?: string;
   fixFiles?: { path: string; content: string }[];
   prUrl?: string;
@@ -159,6 +161,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
           understandingSummary: r.understanding?.summary,
           otherProblems: r.otherProblems,
+          prTitle: r.prTitle,
           testContent: r.testContent,
           fixFiles: r.fixFiles,
           sandboxCalls: r.sandboxCalls,

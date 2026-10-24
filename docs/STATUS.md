@@ -19,11 +19,11 @@ Nothing has been deployed. The pull request code has only run against a mock Git
 
 ### Verified vs not verified (24 Oct evening)
 
-Verified: memory recall with real entries across runs (issues 2, 3 and 4 each recalled earlier fixes); **the whole web path with real GitHub data** (a forged session carrying the owner's read-only token, no login screen, never approve): `/api/session`, `/api/repos` (the owner's real repositories), the issues route, `/api/warm`, `POST /api/runs`, polling `/api/runs/[id]`, the finished run page and the dashboard, issue #2 fixed in 6 min 23 s including about 2 minutes of waiting for the cold warm-up, 79k tokens, three similar past fixes shown on the approval card; `npm run dev` loads all pages without console errors; production build and the standalone layout; every route unauthenticated; the login redirect and state check; authenticated routes with a forged test session against MongoDB (ownership, event order, approval gating, token never exposed, tampered cookie, upload types, rate limit, stale runs); stressor validation; the harness locally; full sandbox runs on all three bugs; env vars in the sandbox; memory, device matching, facets and diff similarity with synthetic data; the PR description text (`buildPrBody`); UI screenshots at desktop and phone width.
+Verified by the owner on 24 Oct evening: GitHub login in the browser, an investigation of issue #4 started from the UI, and **a real pull request opened on GitHub from the Approve button** (PR #5 on the demo repo: one commit by the owner, two files, full description; wording then improved, see D-28). Verified: memory recall with real entries across runs (issues 2, 3 and 4 each recalled earlier fixes); **the whole web path with real GitHub data** (a forged session carrying the owner's read-only token, no login screen, never approve): `/api/session`, `/api/repos` (the owner's real repositories), the issues route, `/api/warm`, `POST /api/runs`, polling `/api/runs/[id]`, the finished run page and the dashboard, issue #2 fixed in 6 min 23 s including about 2 minutes of waiting for the cold warm-up, 79k tokens, three similar past fixes shown on the approval card; `npm run dev` loads all pages without console errors; production build and the standalone layout; every route unauthenticated; the login redirect and state check; authenticated routes with a forged test session against MongoDB (ownership, event order, approval gating, token never exposed, tampered cookie, upload types, rate limit, stale runs); stressor validation; the harness locally; full sandbox runs on all three bugs; env vars in the sandbox; memory, device matching, facets and diff similarity with synthetic data; the PR description text (`buildPrBody`); UI screenshots at desktop and phone width.
 
 `openFixPullRequest` is verified against a local mock of the GitHub API (`src/lib/github.test.ts`): request order, content, base branch, one commit with `Fixes #N`, no merge, no delete.
 
-Not verified: the GitHub login screen itself (needs the owner); a real pull request on GitHub (the auto-mode classifier blocked an attempt to open one with the owner's `gh` token, so it needs the owner's explicit OK); the web upload form in a browser; the stream processor; `docker build`; the keep-alive timer; a long recording.
+Not verified: the GitHub login screen itself (needs the owner);  the web upload form in a browser; the stream processor; `docker build`; the keep-alive timer; a long recording.
 
 ## How to run things
 
@@ -129,8 +129,7 @@ Things found and fixed on the way (good stories for the pitch): a stale staging 
 
 ## Waiting for the owner
 
-1. **Open a real pull request once** to test `openFixPullRequest` end to end (the code is written; run it on the demo repo and close the PR afterwards). An attempt by the assistant was blocked as an external write.
-2. **Browser login** (`npm run dev`, http://localhost:3000): click through repos, issues, ticket form, run, approve.
+1. (done) Browser login and a real pull request. PR #5 is still open on the demo repo; close it and delete its branch `reproducer/issue-1-...` before the demo run, or leave it.
 3. **Atlas Stream Processing workspace and processor** (needs Atlas access): `docs/STREAM-PROCESSING.md`.
 4. **Choose the host** and deploy (`docs/DEPLOY.md`), then add the production OAuth callback.
 5. Record the demo (a sped-up recording is acceptable), and write the three submission texts (CHECKPOINTS).

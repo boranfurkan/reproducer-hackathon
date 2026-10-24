@@ -2,6 +2,14 @@ import { MODELS } from "../config";
 import type { RunDoc } from "../events";
 import { gemini, withRetry } from "../gemini";
 
+/** One plain line: the model's short title, or a tidied start of the root cause as a fallback. Never contains backticks, newlines or file paths. */
+export function pullRequestTitle(run: Pick<RunDoc, "prTitle" | "rootCause" | "title">): string {
+  const raw = run.prTitle?.trim() || run.rootCause?.rootCause || run.title;
+  const clean = raw.replace(/`/g, "").replace(/\s+/g, " ").trim();
+  const cut = clean.length > 70 ? `${clean.slice(0, 70).replace(/\s+\S*$/, "")}…` : clean;
+  return /^fix\b/i.test(cut) ? cut : `Fix: ${cut}`;
+}
+
 /** Two or three plain sentences for the top of the PR. Falls back to the root cause if the model is unavailable. */
 async function summarize(run: RunDoc): Promise<string> {
   const fallback = run.rootCause ? `${run.rootCause.rootCause}` : run.understandingSummary ?? "";
@@ -22,17 +30,19 @@ async function summarize(run: RunDoc): Promise<string> {
   }
 }
 
-export async function buildPrBody(run: RunDoc, issueNumber: number): Promise<string> {
-  const matrix = (run.matrix ?? []).map((m) => `| ${m.name} | ${m.ok ? "passes" : "fails"} |`).join("\n");
+export async function buildPrBody(run: RunDoc, issueNumber: number, summary?: string): Promise<string> {
+  // Rows that failed for a different reason (another bug in the repository) are marked so the table does not contradict the text.
+  const other = new Set((run.otherProblems ?? []).map((o) => o.profile));
+  const matrix = (run.matrix ?? []).map((m) => `| ${m.name} | ${m.ok ? "passes" : other.has(m.name) ? "fails: a different bug, not part of this change" : "fails"} |`).join("\n");
   const p = run.profile;
   const env = p ? `${p.engine}, locale ${p.locale}, timezone ${p.timezoneId}, ${p.viewport.width}x${p.viewport.height}${p.hasTouch ? ", touch" : ""}${p.storageBlocked ? ", storage blocked" : ""}` : "unknown";
   return [
     `Fixes #${issueNumber}`,
     "",
-    await summarize(run),
+    summary ?? (await summarize(run)),
     "",
     "## Root cause",
-    `\`${run.rootCause?.file}\`: ${run.rootCause?.rootCause}`,
+    `In \`${run.rootCause?.file}\`: ${(run.rootCause?.rootCause ?? "").replace(new RegExp(`^\\W*${(run.rootCause?.file ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\W*:?\\s*`), "")}`,
     "",
     run.rootCause?.explanation ?? "",
     "",
@@ -41,7 +51,7 @@ export async function buildPrBody(run: RunDoc, issueNumber: number): Promise<str
     run.decisiveVariables?.length ? `The bug disappears or appears with: ${run.decisiveVariables.join(", ")}.` : "",
     "",
     "## Verification (after the fix)",
-    "A Playwright test (`tests/repro.spec.js`) failed on the reporter's environment before the change and passes after it. The existing tests pass, and the same replay passes in every environment tried:",
+    "A Playwright test (`tests/repro.spec.js`) failed on the reporter's environment before the change and passes after it. The existing tests pass, and the same replay passes in every environment that belongs to this issue:",
     "",
     "| Environment | Replay |",
     "|---|---|",

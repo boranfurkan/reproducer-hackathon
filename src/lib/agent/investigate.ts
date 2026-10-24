@@ -52,6 +52,7 @@ export interface InvestigationResult {
   /** Profiles that failed for a different reason than this issue: probably other bugs in the same repository. */
   otherProblems?: { profile: string; problem: string }[];
   rootCause?: Pick<Proposal, "rootCause" | "file" | "explanation">;
+  prTitle?: string;
   testContent?: string;
   fixFiles?: FileChange[];
   diff?: string;
@@ -265,7 +266,7 @@ export async function investigate(
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
         `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
         "Do three things.\n" +
-        "1. Find the root cause: the file, and exactly why only this environment is affected.\n" +
+        "1. Find the root cause. rootCause: ONE sentence of at most 160 characters, without the file name (file goes in the file field). explanation: two to four sentences on the mechanism and exactly why only this environment is affected, without repeating the rootCause sentence. prTitle: a short imperative pull request title of at most 65 characters, plain text, no backticks and no file paths (for example \"Use locale-independent upper-casing for category keys\").\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +
         `It has two tests. Test 1 is inside test.describe with test.use(${JSON.stringify(describeOpts)}) and follows the replay steps and asserts the CORRECT behaviour, so it FAILS while the bug exists. ` +
         "Test 2 is the same test in a second describe with default options, which PASSES today. " +
@@ -279,6 +280,7 @@ export async function investigate(
     });
     if (attempt === 1) {
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
+      out.prTitle = p.prTitle;
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
     }
     // The files are written into a staging directory first (checksummed heredocs, see the sandbox); the command then copies them into place, in order.

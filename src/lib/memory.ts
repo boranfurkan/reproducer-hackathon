@@ -99,11 +99,12 @@ export function memoryText(m: Pick<BugMemoryDoc, "title" | "symptom" | "rootCaus
   return `${m.title}. ${m.symptom} Cause: ${m.rootCause} Only affects visitors with: ${m.isolatedVariable}. Environment: ${e.engine}, ${e.locale}, ${e.timezoneId}${e.storageBlocked ? ", storage blocked" : ""}${e.mobile ? ", mobile" : ""}.`;
 }
 
-/** Store a verified fix. Secrets are redacted; the code and the explanation are kept. */
+/** Store a verified fix (the latest one per issue). Secrets are redacted; the code and the explanation are kept. */
 export async function recordMemory(m: Omit<BugMemoryDoc, "memoryText" | "createdAt">): Promise<void> {
   const clean = { ...m, symptom: redact(m.symptom), rootCause: redact(m.rootCause), explanation: redact(m.explanation), diff: redact(m.diff) };
   const col = await collection<BugMemoryDoc>("bug_memory");
-  await col.insertOne({ ...clean, memoryText: memoryText(clean), createdAt: new Date() });
+  // One entry per issue: investigating the same issue again replaces the earlier entry instead of adding a duplicate that would crowd out other hits.
+  await col.replaceOne({ repo: clean.repo, issueNumber: clean.issueNumber }, { ...clean, memoryText: memoryText(clean), createdAt: new Date() }, { upsert: true });
 }
 
 /**

@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/api';
-import { buildPrBody } from '@/lib/agent/pr';
+import { buildPrBody, pullRequestTitle } from '@/lib/agent/pr';
 import type { ApprovalDoc, RunDoc, RunEventDoc } from '@/lib/events';
 import { openFixPullRequest } from '@/lib/github';
 import { collection } from '@/lib/mongo';
@@ -33,8 +33,7 @@ export async function POST(_req: Request, ctx: RouteContext<'/api/runs/[id]/appr
       owner,
       repo,
       issueNumber,
-      // One line, no stray whitespace: it becomes the commit subject and the pull request title.
-      title: `Fix: ${(run.rootCause?.rootCause ?? run.title).replace(/\s+/g, ' ').trim().slice(0, 70)}`,
+      title: pullRequestTitle(run),
       body: await buildPrBody(run, issueNumber),
       files: [...run.fixFiles, { path: 'tests/repro.spec.js', content: run.testContent }],
     });
