@@ -222,3 +222,12 @@ export interface TriageBadge {
   hint: string;
   similar?: { title: string; issue: string; outcome?: string };
 }
+
+/** What ReProducer has done for the signed-in developer (MongoDB aggregations, see lib/insights.ts). */
+export interface InsightsData {
+  totals: { runs: number; fixed: number; tokens: number; avgTokensPerFix: number; avgSecondsPerFix: number; pullRequests: number; merged: number; closed: number };
+  daily: { day: string; runs: number; fixed: number; tokens: number; tokensTotal: number }[];
+  byStatus: { status: string; runs: number; avgTokens: number }[];
+  byVariable: { variable: string; fixes: number; merged: number }[];
+  pullRequests: { run: string; title: string; prNumber: number; state: string; events: number; reviews: number; revised: boolean }[];
+}

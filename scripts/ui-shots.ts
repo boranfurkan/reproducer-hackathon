@@ -77,7 +77,42 @@ async function seed() {
       profile: { engine: "chromium", locale: "en-US", timezoneId: "Europe/London", viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, isMobile: false, hasTouch: false, name: "reporter", notEmulated: [] },
     },
   ]);
-  return { fixed: String(fixed), running: String(running), stopped: String(stopped), ids: [fixed, running, stopped] };
+  // A fixed run whose pull request is open, reviewers have commented and a verified revision is waiting for the developer's click.
+  const pr = new ObjectId();
+  const source = (await runs.findOne({ _id: fixed }))!;
+  await events.insertMany(mkEvents(pr, 99).map((e) => ({ ...e, runId: pr })));
+  await events.insertOne({ runId: pr, at: new Date(), seq: 99, atMs: 240000, type: "pr_opened", summary: "Pull request #7 opened: https://github.com/acme/shop/pull/7" });
+  await events.insertOne({ runId: pr, at: new Date(), seq: 100, atMs: 900000, type: "pr_update", summary: "New review activity on the pull request (#7)" });
+  await events.insertOne({ runId: pr, at: new Date(), seq: 101, atMs: 960000, type: "revision", summary: "The revision is verified: the test fails before it and passes after it, 4 of 4 required profiles pass" });
+  await runs.insertOne({
+    ...source,
+    _id: pr,
+    issueNumber: 15,
+    createdAt: new Date(Date.now() - 20 * 60_000),
+    finishedAt: new Date(Date.now() - 15 * 60_000),
+    prUrl: "https://github.com/acme/shop/pull/7",
+    prNumber: 7,
+    prState: "open",
+    prReviews: 1,
+    prComments: 2,
+    prReviewState: "CHANGES_REQUESTED",
+    prCheckedAt: new Date(),
+    approvedAt: new Date(),
+    revisions: 0,
+    revision: {
+      status: "ready",
+      requestedAt: new Date(),
+      feedbackCount: 2,
+      feedback: "- reviewer: please explain why the locale must not be used",
+      summary: "Explain in a comment why locale-aware upper-casing must not be used for category keys.",
+      reply: "Thanks for the review! I added a comment above the changed line explaining that toLocaleUpperCase turns i into a dotted capital I in Turkish and Azerbaijani, which breaks lookups against the server's ASCII keys. The test and the other profiles still pass.",
+      diff: "diff --git a/src/categories.js b/src/categories.js\n--- a/src/categories.js\n+++ b/src/categories.js\n@@ -1,5 +1,7 @@\n // The server stores categories under ASCII upper-case keys.\n export function categoryKey(slug) {\n-  return slug.toLocaleUpperCase(navigator.language);\n+  // Do not use toLocaleUpperCase: in Turkish and Azerbaijani, i becomes a dotted capital I,\n+  // which does not match the server's ASCII keys.\n+  return slug.toUpperCase();\n }\n",
+      matrixPassed: 4,
+      matrixTotal: 4,
+    },
+  });
+  await runs.updateOne({ _id: stopped }, { $set: { replyDraft: { text: "Thanks for reporting this. I tried to reproduce it with Chrome on Windows, en-US, in the Europe/London timezone, and also with dark mode, but the confirmation showed the correct day every time.\n\nCould you tell me:\n- Your city or timezone (I guessed Europe/London)\n- A screenshot of the confirmation page" } } });
+  return { fixed: String(fixed), running: String(running), stopped: String(stopped), pr: String(pr), ids: [fixed, running, stopped, pr] };
 }
 
 async function main() {
@@ -113,6 +148,8 @@ async function main() {
         await shot("5-run-fixed", `/runs/${seeded.fixed}`);
         await shot("6-run-running", `/runs/${seeded.running}`);
         await shot("7-run-could-not-reproduce", `/runs/${seeded.stopped}`);
+        await shot("12-insights", "/insights");
+        await shot("13-run-pr-revision", `/runs/${seeded.pr}`);
         await ctx.close();
 
         // Loading states: the data requests are held open, so the page shows its skeletons.

@@ -21,6 +21,7 @@ export default function Header({ user }: { user: SessionUser | null }) {
         </Link>
         {user ? (
           <div className="flex items-center gap-3 font-mono text-[13px] font-medium text-muted">
+            <Link href="/insights" className="text-muted no-underline hover:text-foreground">Insights</Link>
             <UserTile letters={initials(user.name, user.login)} />
             <span className="max-w-[30vw] truncate">{user.login}</span>
             <button onClick={logout} className={buttonClass('secondary', 'sm')}>Log out</button>

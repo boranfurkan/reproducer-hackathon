@@ -8,6 +8,7 @@ import {
   ApiError,
   api,
   type ClusterAlert,
+  type InsightsData,
   type IssueItem,
   type MediaItem,
   type MemoryFacets,
@@ -73,6 +74,15 @@ export function useIssues(owner: string, name: string): { issues: IssueItem[] | 
     api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`).then((r) => setIssues(r.issues)).catch((e: Error) => setError(e.message));
   }, [owner, name]);
   return { issues, error };
+}
+
+/** The developer's totals, daily activity and pull request history. null while loading. */
+export function useInsights(): InsightsData | null {
+  const [data, setData] = useState<InsightsData | null>(null);
+  useEffect(() => {
+    api<InsightsData>('/api/insights').then(setData).catch(() => setData(null));
+  }, []);
+  return data;
 }
 
 /** Badges for the issue list: which issues look environment-specific, and which look like a fix already in memory. Empty until the model has answered (it never blocks the list). */

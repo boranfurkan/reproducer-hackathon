@@ -24,6 +24,7 @@ The design source (HTML components, mascot script and brief) was delivered as a 
 | Route | Component | What it shows |
 |---|---|---|
 | `/` | `Home` | Logged out: hero with the mascot, tagline, "Log in with GitHub", four step cards. Logged in: repository picker (public first, private behind a toggle), recent investigations, shared-bug alerts, "what it has learned". |
+| `/insights` | `Insights` | Totals (investigations, tokens, time to a fix, pull requests), activity by day with a running token total, what isolated the bugs, pull request history. Hook: `useInsights()`. |
 | (dashboard box) | `AskMemory` | "Ask the memory": a question in plain words, the answer, and chips showing what the model looked up. Hook: `askMemory(question)`. |
 | `/repos/[owner]/[name]` | `IssueList` | Open issues in one bordered list, with an empty state. Triage badges (hook `useTriage`) appear on each row a moment after the list: "likely environment-specific" and "looks like repo#N, fixed". |
 | `/repos/[owner]/[name]/issues/[number]` | `TicketForm` | The report, then: who hit the bug, optional recording or screenshot (drop or choose), optional environment variables ("sandbox only"), Investigate. Shows "Sandbox warming up" and then "Sandbox ready". `?notes=` pre-fills the notes (used by "Try again with more detail"). |
@@ -77,4 +78,4 @@ Logged out; loading; error; empty (no repositories, issues or runs); run status 
 
 ## Reviewing a change
 
-`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished, a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 22 screenshots (7 pages and 4 loading states, desktop and phone) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.
+`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished, a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 26 screenshots (9 pages and 4 loading states, desktop and phone; it seeds a run with an open pull request and a ready revision, and a not-reproduced run with a drafted reply) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.

@@ -45,6 +45,7 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 | Change streams | The run page subscribes to its run (`runs`, `run_events`, `pr_events`) through `GET /api/runs/[id]/stream` (server-sent events); no polling while it is connected |
 | Schema validation (`$jsonSchema`) | `runs`, `bug_memory`, `pr_events`, `approvals` reject malformed documents (`src/lib/schema.ts`, applied by `db:setup`) |
 | TTL indexes | `tickets` and `ticket_clusters` expire after 30 days |
+| Aggregation pipelines | `/insights`: `$dateTrunc`, `$group`, `$setWindowFields` (running total), `$lookup` into `pr_events`, `$cond`, `$avg` (`src/lib/insights.ts`) |
 | Aggregation (`$group`) | `memory_counts` in "Ask the memory": counts of fixes by isolating variable, engine, locale, PR outcome or file |
 | Transactions | Approving a pull request, and every change to a pull request's state, write `runs`, `approvals` or `pr_events`, `run_events` and `bug_memory` together (`prtrack.ts`, the approve route) |
 
