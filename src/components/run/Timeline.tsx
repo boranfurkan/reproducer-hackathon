@@ -93,6 +93,9 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         out.push({ ...base, who: 'agent', label: 'Tests pass', summary: 'The new test passes, the existing tests pass, the matrix is green.', pose: 'found', tone: 'pass', ...(c.total ? { out: { text: `✔ tests pass   matrix ${c.passed} of ${c.total}`, tone: 'pass' as const } } : {}) });
         break;
       }
+      case 'revision':
+        out.push({ ...base, who: 'agent', label: 'Revision', summary: line, tone: /failed/i.test(line) ? 'fail' : /verified|pushed/i.test(line) ? 'pass' : undefined });
+        break;
       case 'pr_update':
         out.push({ ...base, who: 'agent', label: 'Pull request', summary: line, tone: /merged/i.test(line) ? 'pass' : /closed/i.test(line) ? 'fail' : undefined });
         break;

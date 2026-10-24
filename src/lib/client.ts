@@ -107,6 +107,21 @@ export interface RunView {
   prReviews?: number;
   prReviewState?: string | null;
   prMergedAt?: string;
+  revisions?: number;
+  revision?: {
+    status: 'running' | 'ready' | 'failed' | 'pushed' | 'discarded';
+    requestedAt: string;
+    feedbackCount: number;
+    feedback: string;
+    summary?: string;
+    reply?: string;
+    diff?: string;
+    reason?: string;
+    matrixPassed?: number;
+    matrixTotal?: number;
+    pushedAt?: string;
+    commitUrl?: string;
+  };
   prClosedAt?: string;
   rejectedAt?: string;
   issueUrl?: string;

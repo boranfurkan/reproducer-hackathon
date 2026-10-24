@@ -8,7 +8,7 @@ import { Eyebrow, InlineCode, RunStatusChip, StatusChip, buttonClass } from '../
 import { TEST_FILE, ago, diffStats, splitDiff, type RunView, type SimilarFix } from '@/lib/client';
 import { approveRun, rejectRun } from '@/lib/hooks';
 
-function DiffBlock({ diff }: { diff: string }) {
+export function DiffBlock({ diff }: { diff: string }) {
   return (
     <pre className="m-0 max-h-80 overflow-auto rounded-md border border-purple-800 bg-code py-2.5 font-mono text-[13px] leading-[1.7] text-muted">
       {diff.split('\n').map((l, i) => {

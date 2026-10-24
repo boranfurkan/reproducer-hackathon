@@ -65,6 +65,7 @@ export type RunEventType =
   | "approval_requested"
   | "pr_opened"
   | "pr_update"
+  | "revision"
   | "stopped";
 
 export interface RunEvent {

@@ -102,3 +102,54 @@ export async function openFixPullRequest(input: PullRequestInput): Promise<{ url
   const { data: pr } = await gh.pulls.create({ owner, repo, title: input.title, head: branch, base, body: input.body });
   return { url: pr.html_url, number: pr.number, branch };
 }
+
+/** Marker in the comments ReProducer writes, so its own words are never read back as reviewer feedback. */
+export const BOT_MARKER = "<!-- reproducer -->";
+
+export interface PrFeedback {
+  author: string;
+  kind: "review" | "inline" | "comment";
+  /** For a review: APPROVED, CHANGES_REQUESTED or COMMENTED. */
+  state?: string;
+  path?: string;
+  line?: number;
+  body: string;
+}
+
+/** What reviewers wrote on a pull request: review summaries, inline comments on the code, and conversation comments (read-only). */
+export async function listPrFeedback(token: string, owner: string, repo: string, number: number, baseUrl?: string): Promise<PrFeedback[]> {
+  const gh = (await octokitFor(token, baseUrl)).rest;
+  const [reviews, inline, comments] = await Promise.all([
+    gh.pulls.listReviews({ owner, repo, pull_number: number, per_page: 50 }),
+    gh.pulls.listReviewComments({ owner, repo, pull_number: number, per_page: 50 }),
+    gh.issues.listComments({ owner, repo, issue_number: number, per_page: 50 }),
+  ]);
+  const clip = (s: string) => s.slice(0, 1200);
+  return [
+    ...reviews.data.filter((r) => r.body && r.state !== "PENDING").map((r) => ({ author: r.user?.login ?? "?", kind: "review" as const, state: r.state, body: clip(r.body!) })),
+    ...inline.data.map((c) => ({ author: c.user?.login ?? "?", kind: "inline" as const, path: c.path, line: c.line ?? c.original_line ?? undefined, body: clip(c.body) })),
+    ...comments.data.map((c) => ({ author: c.user?.login ?? "?", kind: "comment" as const, body: clip(c.body ?? "") })),
+  ].filter((f) => f.body && !f.body.includes(BOT_MARKER));
+}
+
+/** Add a commit to the branch of an open pull request (the revision the developer approved). */
+export async function pushToBranch(input: { token: string; owner: string; repo: string; branch: string; message: string; files: { path: string; content: string }[]; baseUrl?: string }): Promise<{ sha: string; url: string }> {
+  const gh = (await octokitFor(input.token, input.baseUrl)).rest;
+  const { owner, repo } = input;
+  const { data: ref } = await gh.git.getRef({ owner, repo, ref: `heads/${input.branch}` });
+  const { data: head } = await gh.git.getCommit({ owner, repo, commit_sha: ref.object.sha });
+  const { data: tree } = await gh.git.createTree({
+    owner,
+    repo,
+    base_tree: head.tree.sha,
+    tree: input.files.map((f) => ({ path: f.path, mode: "100644" as const, type: "blob" as const, content: f.content })),
+  });
+  const { data: commit } = await gh.git.createCommit({ owner, repo, message: input.message, tree: tree.sha, parents: [ref.object.sha] });
+  await gh.git.updateRef({ owner, repo, ref: `heads/${input.branch}`, sha: commit.sha });
+  return { sha: commit.sha, url: commit.html_url };
+}
+
+export async function commentOnPr(token: string, owner: string, repo: string, number: number, body: string, baseUrl?: string): Promise<void> {
+  const gh = (await octokitFor(token, baseUrl)).rest;
+  await gh.issues.createComment({ owner, repo, issue_number: number, body: `${body}\n\n${BOT_MARKER}` });
+}

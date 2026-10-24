@@ -1,4 +1,4 @@
-import { ObjectId } from "mongodb";
+import { ObjectId, type Collection } from "mongodb";
 import type { Emit, InvestigationResult, Ticket } from "./agent/investigate";
 import { LIMITS } from "./config";
 import { collection } from "./mongo";
@@ -55,6 +55,9 @@ export interface RunDoc {
   /** What the pull request will contain. */
   /** Short pull request title written by the model. */
   prTitle?: string;
+  /** What a revision needs (see InvestigationResult). */
+  replay?: InvestigationResult["replay"];
+  proposalInteractionId?: string;
   testContent?: string;
   fixFiles?: { path: string; content: string }[];
   prUrl?: string;
@@ -68,6 +71,25 @@ export interface RunDoc {
   prComments?: number;
   prReviews?: number;
   prReviewState?: string | null;
+  /** A revision of the pull request written after review comments (see revise.ts). Nothing reaches GitHub until the developer pushes it. */
+  revision?: {
+    status: "running" | "ready" | "failed" | "pushed" | "discarded";
+    requestedAt: Date;
+    /** How many reviewer comments it answers, and what they said (redacted, clipped). */
+    feedbackCount: number;
+    feedback: string;
+    summary?: string;
+    reply?: string;
+    files?: { path: string; content: string }[];
+    testContent?: string;
+    diff?: string;
+    reason?: string;
+    matrixPassed?: number;
+    matrixTotal?: number;
+    pushedAt?: Date;
+    commitUrl?: string;
+  };
+  revisions?: number;
   approvedAt?: Date;
   rejectedAt?: Date;
   sandboxCalls?: { label: string; ms: number; tokens: number }[];
@@ -117,6 +139,40 @@ function clip(data: unknown, secrets: string[]): unknown {
   const safe = redactDeep(data, secrets);
   const json = JSON.stringify(safe);
   return json.length > MAX_DATA_CHARS ? { truncated: true, preview: json.slice(0, MAX_DATA_CHARS) } : safe;
+}
+
+/**
+ * The live "thinking" line of a run: the model's thought summary, written to the run document. A stream sends many small pieces, so writes
+ * are throttled (one per 0.7 s, the last piece is always written); `think(step, null)` clears the line.
+ */
+export function thinkingWriter(runs: Collection<RunDoc>, runId: ObjectId, secrets: string[] = [], track: (p: Promise<unknown>) => void = () => undefined) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let latest: { step: string; text: string } | null = null;
+  const flush = () => {
+    timer = null;
+    const t = latest;
+    track(runs.updateOne({ _id: runId }, { $set: { thinking: t ? { step: t.step, text: redact(t.text.slice(-1200), secrets), at: new Date() } : null } }).catch(() => undefined));
+  };
+  return {
+    think(step: string, text: string | null) {
+      latest = text === null ? null : { step, text };
+      if (text === null) {
+        if (timer) clearTimeout(timer);
+        flush();
+      } else if (!timer) timer = setTimeout(flush, 700);
+    },
+    cancel() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
+
+/** Append one event to a run's timeline after the investigation is over (pull request updates, revisions). */
+export async function appendEvent(run: Pick<RunDoc, "_id" | "createdAt">, type: RunEventType, summary: string, data?: unknown, tokens?: number): Promise<void> {
+  const events = await collection<RunEventDoc>("run_events");
+  const at = new Date();
+  await events.insertOne({ runId: run._id, at, seq: await events.countDocuments({ runId: run._id }), atMs: at.getTime() - run.createdAt.getTime(), type, summary: redact(summary), data: clip(data, []), tokens });
 }
 
 /**
@@ -178,24 +234,11 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
     }
   };
 
-  // The live thinking line: writes are throttled (a stream sends many small pieces), the last piece is always written.
-  let thinkTimer: ReturnType<typeof setTimeout> | null = null;
-  let latest: { step: string; text: string } | null = null;
-  const flushThinking = () => {
-    thinkTimer = null;
-    const t = latest;
-    pending.push(runs.updateOne({ _id: runId }, { $set: { thinking: t ? { step: t.step, text: redact(t.text.slice(-1200), secrets), at: new Date() } : null } }).catch(() => undefined));
-  };
-  const think = (step: string, text: string | null) => {
-    latest = text === null ? null : { step, text };
-    if (text === null) {
-      if (thinkTimer) clearTimeout(thinkTimer);
-      flushThinking();
-    } else if (!thinkTimer) thinkTimer = setTimeout(flushThinking, 700);
-  };
+  const thinker = thinkingWriter(runs, runId, secrets, (p) => pending.push(p));
+  const think = thinker.think;
 
   const close = async (patch: Partial<RunDoc>) => {
-    if (thinkTimer) clearTimeout(thinkTimer);
+    thinker.cancel();
     await Promise.all(pending);
     await runs.updateOne({ _id: runId }, { $set: { ...patch, thinking: null, finishedAt: new Date() } });
   };
@@ -218,6 +261,8 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           understandingSummary: r.understanding?.summary,
           otherProblems: r.otherProblems,
           prTitle: r.prTitle,
+          replay: r.replay,
+          proposalInteractionId: r.proposalInteractionId,
           testContent: r.testContent,
           fixFiles: r.fixFiles,
           sandboxCalls: r.sandboxCalls,

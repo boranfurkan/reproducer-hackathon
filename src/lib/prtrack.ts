@@ -26,7 +26,7 @@ export interface PrEventDoc {
   repo: string;
   prNumber: number;
   at: Date;
-  kind: "opened" | "review" | "merged" | "closed" | "reopened";
+  kind: "opened" | "review" | "revised" | "merged" | "closed" | "reopened";
   state: PrState;
   comments: number;
   reviews: number;
@@ -58,6 +58,7 @@ const kindOf = (run: Pick<RunDoc, "prState" | "prReviews" | "prComments">, s: Pr
 const words: Record<PrEventDoc["kind"], string> = {
   opened: "Pull request opened",
   review: "New review activity on the pull request",
+  revised: "Revision pushed to the pull request",
   merged: "Pull request merged",
   closed: "Pull request closed without merging",
   reopened: "Pull request reopened",

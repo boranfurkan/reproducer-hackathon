@@ -239,6 +239,11 @@ export async function stopRun(id: string): Promise<void> {
   await api(`/api/runs/${id}/stop`, { method: 'POST' });
 }
 
+/** Revising the pull request after review comments: `start` writes a verified revision (nothing is pushed), `push` commits it to the branch, `discard` drops it. */
+export async function reviseRun(id: string, action: 'start' | 'push' | 'discard'): Promise<void> {
+  await api(`/api/runs/${id}/revision`, { method: 'POST', body: JSON.stringify({ action }) });
+}
+
 /** Records that the developer rejected the fix. Nothing is pushed. */
 export async function rejectRun(id: string): Promise<void> {
   await api(`/api/runs/${id}/reject`, { method: 'POST' });

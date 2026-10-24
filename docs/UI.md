@@ -51,6 +51,10 @@ Helpers in `client.ts`: `initials`, `diffStats`, `splitDiff`, `formatDuration`, 
 - **Approval card**: `rootCause` (one sentence, `explanation` below it), `diff` (the test file is shown separately from `testContent`), `profile.notEmulated`, `similar`, `matrix` for the "N of M" chip, `otherProblems`.
 - **Could not reproduce**: `reason` and `suggestions` (details that would help, written by Argon from the case).
 
+## After the pull request is open
+
+`run/RevisionPanel.tsx` (side column): when reviewers have commented, "Address review feedback" starts a revision (states: running with the live thinking line, ready with the reply to the reviewer and the new diff, pushed, failed). "Push to the pull request" is the only action that writes to GitHub; "Discard" drops it. Hook: `reviseRun(id, 'start' | 'push' | 'discard')`. The run's `prState`, `prReviews`, `prComments` and `revision` come with the run.
+
 ## Loading states (`src/components/loaders.tsx`)
 
 Every wait has a shape that matches what is coming, so the page does not jump: `RepoRowsSkeleton`, `RunCardsSkeleton`, `LearnedSkeleton` (dashboard), `IssueRowsSkeleton`, `ReportSkeleton` (ticket form), `RunPageSkeleton` (header, timeline entries and side panel). A whole-page wait (checking the session, the Suspense fallback of every page) shows `PageLoader`: the mascot looking through its lens and three pixels. Buttons that wait show `Busy` (pixels and the verb: "Starting", "Opening pull request", "Rejecting", "Stopping after this step"). Skeleton blocks pulse in two whole steps (`.rp-skel`), not a smooth fade, and stop with reduced motion. Each region has `role="status"` and `aria-busy` for screen readers. Hooks distinguish loading from empty: `null` or `undefined` is loading, an empty array is empty.

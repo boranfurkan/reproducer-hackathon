@@ -203,3 +203,25 @@ export const proposalSchema = {
   },
   required: ["rootCause", "file", "explanation", "prTitle", "testContent", "files", "fixExplanation"],
 };
+
+/** A revised fix after review comments: the whole set of files that differ from the base branch, the test, and what to tell the reviewer. */
+export interface Revision {
+  summary: string;
+  reply: string;
+  testContent: string;
+  files: FileChange[];
+}
+
+export const revisionSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    reply: { type: "string" },
+    testContent: { type: "string" },
+    files: {
+      type: "array",
+      items: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] },
+    },
+  },
+  required: ["summary", "reply", "testContent", "files"],
+};

@@ -1,14 +1,15 @@
 import { LIMITS } from "../config";
 import { TokenBudget } from "../gemini";
-import { HARNESS_DIR, TARGET_DIR, harnessFiles } from "../harness/scripts";
+import { HARNESS_DIR, harnessFiles } from "../harness/scripts";
 import { matchDevices } from "../devices";
 import { recallSimilar } from "../memory";
 import type { MediaRef } from "../media";
 import { AntigravitySandbox } from "../sandbox/antigravity";
-import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
+import type { CallTiming, EnvProfile, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
 import { ablations, baselineProfile, canonicalVariable, describeChange, describeProfile, rowKind, splitByIssue, stressorProfiles } from "./profiles";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
+import { TEST_PATH, between, count, formatMatrix, parseMatrix, verifyFix, type ProfileResult } from "./verify";
 import {
   type FileChange,
   type Proposal,
@@ -33,20 +34,6 @@ export interface Ticket {
 /** `meta.tokens` is the running token total at the moment of the event, for the live counter on the run page. */
 export type Emit = (type: RunEventType, summary: string, data?: unknown, meta?: { tokens: number }) => void;
 
-interface ProfileResult {
-  name: string;
-  ok: boolean;
-  failure: string | null;
-  pageText?: string;
-  errors?: string[];
-  /** The same replay in every installed engine; `ok` above is the result for the profile's own engine. */
-  engines?: Record<string, { ok: boolean; failure: string | null }>;
-  /** For the matrix table: how the row relates to the reporter, what its environment is, what differs. */
-  kind?: string;
-  env?: string;
-  change?: string;
-}
-
 export interface InvestigationResult {
   status: "fixed" | "not_reproduced" | "no_fix" | "stopped";
   reason?: string;
@@ -67,6 +54,10 @@ export interface InvestigationResult {
   testContent?: string;
   fixFiles?: FileChange[];
   diff?: string;
+  /** Everything needed to verify a changed fix later (a revision of the pull request): the replay and the profiles that must pass. */
+  replay?: { plan: ReplayPlan; profiles: EnvProfile[]; engines: string[]; required: string[] };
+  /** The model interaction that wrote the fix; a revision continues it (server-side conversation state). */
+  proposalInteractionId?: string;
   tokensUsed: number;
   environmentId: string | null;
   sandboxCalls: CallTiming[];
@@ -76,34 +67,6 @@ export interface InvestigationResult {
 const SYSTEM =
   "You are ReProducer, a senior engineer who reproduces bugs that only happen in the reporter's environment " +
   "(browser engine, locale, timezone, device, storage). Be precise. Never invent files or selectors that are not in the code you are given.";
-
-const TARGET = TARGET_DIR;
-const TEST_PATH = "tests/repro.spec.js";
-
-function between(text: string, start: string, end: string): string | null {
-  const a = text.indexOf(start);
-  if (a < 0) return null;
-  const b = text.indexOf(end, a + start.length);
-  return b < 0 ? null : text.slice(a + start.length, b);
-}
-
-function parseMatrix(json: string | null, r?: ExecResult): ProfileResult[] {
-  if (!json) throw new Error(`Matrix produced no result${r ? ` (exit ${r.code}): ${(r.stdout + r.stderr).slice(-400)}` : ""}`);
-  return JSON.parse(json) as ProfileResult[];
-}
-
-function formatMatrix(rows: ProfileResult[]): string {
-  return rows
-    .map((r) => `${r.name.padEnd(16)} ${r.ok ? "PASS" : "FAIL"}${r.failure ? ` | ${r.failure}` : ""}${r.pageText ? ` | page: "${r.pageText}"` : ""}${r.errors?.length ? ` | errors: ${r.errors.join("; ")}` : ""}`)
-    .join("\n");
-}
-
-function safeRelPath(p: string): string {
-  if (!/^[\w./@-]+$/.test(p) || p.includes("..") || p.startsWith("/")) throw new Error(`Unsafe path from model: ${p}`);
-  return p;
-}
-
-const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(text)?.[1] ?? 0);
 
 export async function investigate(
   ticket: Ticket,
@@ -260,6 +223,7 @@ export async function investigate(
   // A repository can hold several bugs. A profile that failed in round 1 for a different reason than the focus (another failed step or another
   // console error) belongs to a different problem: it is reported, not required to pass, and the model is told not to fix it.
   const { required, unrelated } = splitByIssue(m1, focusRow.name);
+  out.replay = { plan, profiles, engines: ["chromium", "webkit"], required: [...required] };
   out.otherProblems = unrelated.map((r) => ({ profile: r.name, problem: r.errors?.[0] || r.failure || "fails" }));
   if (unrelated.length) {
     say(
@@ -309,14 +273,12 @@ export async function investigate(
     : "";
 
   let feedback = "";
+  let lastInteractionId: string | undefined;
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
     if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
-    const p = await ask<Proposal>("Finding the root cause and the fix", {
-      budget,
-      system: SYSTEM,
-      level: "high",
-      schema: proposalSchema,
-      prompt:
+    // The first attempt sends everything. A retry continues the same interaction (server-side conversation state), so the model keeps its own
+    // reasoning and the code it read, and only the verification feedback is new; if no interaction id is known it falls back to the full prompt.
+    const fullPrompt =
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
         `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
         "Do three things.\n" +
@@ -329,49 +291,40 @@ export async function investigate(
           : "Do not set browserName (the default is already chromium). ") +
         (focus.storageBlocked ? `Storage is blocked in the failing environment: inside the failing describe, include exactly this hook so localStorage and sessionStorage throw like they do there: ${storageSnippet} ` : "") +
         "Use stable selectors from the source. Check each route: this app uses hash routes, so goto paths look like \"/#/category/fiction\".\n" +
-        "3. Fix the bug with the smallest change that keeps behaviour for other users. Return only the files you change (path relative to the repo root, full new content). Do not edit the test." +
-        (feedback ? `\n\nYour previous attempt failed verification:\n${feedback}\nCorrect it.` : ""),
+        "3. Fix the bug with the smallest change that keeps behaviour for other users. Return only the files you change (path relative to the repo root, full new content). Do not edit the test.";
+    const retry = attempt > 1 && lastInteractionId;
+    const p = await ask<Proposal>("Finding the root cause and the fix", {
+      budget,
+      system: SYSTEM,
+      level: "high",
+      schema: proposalSchema,
+      prompt: retry
+        ? `Your previous attempt failed verification:\n${feedback}\nCorrect it. Answer with the same JSON as before: the root cause, the test and the fix in full.`
+        : fullPrompt + (feedback ? `\n\nYour previous attempt failed verification:\n${feedback}\nCorrect it.` : ""),
+      ...(retry ? { previousInteractionId: lastInteractionId } : {}),
+      onInteractionId: (id) => (lastInteractionId = id),
     });
     if (attempt === 1) {
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
       out.prTitle = p.prTitle;
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
     }
-    // The files are written into a staging directory first (checksummed heredocs, see the sandbox); the command then copies them into place, in order.
-    // A fresh directory per call: a reused sandbox keeps old staged files, and they would be copied into the repo again.
+    // A fresh staging directory per call (see verifyFix).
     const stage = `/opt/stage/${Date.now().toString(36)}-a${attempt}`;
-    const staged: SandboxFile[] = [
-      { path: `${stage}/test.spec.js`, content: p.testContent },
-      ...p.files.map((f) => ({ path: `${stage}/fix/${safeRelPath(f.path)}`, content: f.content })),
-    ];
-
-    // Reset the clone, add the test and run it (must be red), apply the fix, run all tests (must be green), re-run the matrix, print the diff.
-    const H = HARNESS_DIR;
-    const verify =
-      `cd ${TARGET} && git checkout -- . && git clean -fdq && mkdir -p tests && cp ${stage}/test.spec.js ${TEST_PATH} && ` +
-      `echo '@@RED@@' && (bash ${H}/test.sh ${TEST_PATH}; echo "@@REDEXIT:$?@@"); ` +
-      `cp -r ${stage}/fix/. ${TARGET}/ && ` +
-      `echo '@@GREEN@@' && (bash ${H}/test.sh; G=$?; echo "@@GREENEXIT:$G@@"; [ $G -eq 0 ] && bash ${H}/matrix.sh); ` +
-      `echo '@@DIFF@@'; cd ${TARGET} && git add -N . && git diff`;
-    const r = await sandbox.run(verify, `verify-${attempt}`, [...staged, job]);
-
-    const red = between(r.stdout, "@@RED@@", "@@REDEXIT:") ?? "";
-    const redExit = Number(/@@REDEXIT:(\d+)@@/.exec(r.stdout)?.[1] ?? -1);
-    const green = between(r.stdout, "@@GREEN@@", "@@GREENEXIT:") ?? "";
-    const greenExit = Number(/@@GREENEXIT:(\d+)@@/.exec(r.stdout)?.[1] ?? -1);
-    const redOk = redExit > 0 && count(red, "failed") >= 1 && count(red, "passed") >= 1;
+    const v = await verifyFix({ sandbox, label: `verify-${attempt}`, stage, testContent: p.testContent, files: p.files, job });
+    const { red, redOk, green, greenExit } = v;
     say("test_written", `Test before the fix: ${count(red, "failed")} failed, ${count(red, "passed")} passed ${redOk ? "(red as required)" : "(not the required red)"}`, red.trim());
     say("fix_attempt", `Attempt ${attempt}: ${p.fixExplanation}`, { files: p.files.map((f) => f.path) });
 
-    const matrixJson = between(r.stdout, "@@RESULT@@", "@@END@@");
-    const m2 = greenExit === 0 && matrixJson ? enrich(parseMatrix(matrixJson)) : null;
+    const m2 = greenExit === 0 && v.matrixJson ? enrich(parseMatrix(v.matrixJson)) : null;
     if (m2) say("matrix", `Matrix after fix\n${formatMatrix(m2)}`, m2);
     if (redOk && m2 && m2.filter((x) => required.has(x.name)).every((x) => x.ok)) {
       out.status = "fixed";
       out.matrix = m2;
       out.testContent = p.testContent;
       out.fixFiles = p.files;
-      out.diff = r.stdout.split("@@DIFF@@")[1]?.trim() ?? "";
+      out.diff = v.diff;
+      out.proposalInteractionId = lastInteractionId;
       say("green", "All tests and every profile pass", { files: p.files.map((f) => f.path) });
       say("approval_requested", "Waiting for the developer to approve a pull request");
       return finish();

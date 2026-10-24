@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import Mascot from './mascot/Mascot';
 import ApprovalCard from './run/ApprovalCard';
+import RevisionPanel from './run/RevisionPanel';
 import Timeline from './run/Timeline';
 import { Busy, RunPageSkeleton } from './loaders';
 import Shell from './Shell';
@@ -147,6 +148,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
         <aside className={`flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 ${waiting ? 'order-first flex-[1_1_460px] lg:order-none' : 'flex-[0.8_1_340px]'}`}>
           {waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
           {run.status === 'fixed' && (run.prUrl || run.rejectedAt) && !waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
+          {run.prUrl && <RevisionPanel run={run} onChange={reload} />}
           {running && <NowPanel run={run} events={events} />}
           {done && run.status !== 'fixed' && <StoppedPanel run={run} owner={owner} repo={repo} />}
           {run.otherProblems && run.otherProblems.length > 0 && (

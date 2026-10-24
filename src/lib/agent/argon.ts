@@ -6,15 +6,16 @@ import type { MediaRef } from "../media";
  * One streamed Interactions call (docs: streaming, thinking). Events: `step.delta` carries `thought_summary` (the reasoning so far, in
  * pieces) and `text` (the answer, in pieces); `interaction.completed` carries the final usage.
  */
-async function streamText(request: Parameters<ReturnType<typeof gemini>["interactions"]["create"]>[0], onThought: (summary: string) => void): Promise<{ text: string; tokens: number }> {
+async function streamText(request: Parameters<ReturnType<typeof gemini>["interactions"]["create"]>[0], onThought: (summary: string) => void): Promise<{ text: string; tokens: number; id?: string }> {
   const stream = (await gemini().interactions.create({ ...request, stream: true } as never)) as unknown as AsyncIterable<{
     event_type: string;
     delta?: { type: string; text?: string; content?: { text?: string } };
-    interaction?: { usage?: { total_tokens?: number } };
+    interaction?: { id?: string; usage?: { total_tokens?: number } };
   }>;
   let text = "";
   let thought = "";
   let tokens = 0;
+  let id: string | undefined;
   for await (const event of stream) {
     if (event.event_type === "step.delta" && event.delta) {
       if (event.delta.type === "thought_summary") {
@@ -23,11 +24,14 @@ async function streamText(request: Parameters<ReturnType<typeof gemini>["interac
       } else if (event.delta.type === "text") {
         text += event.delta.text ?? "";
       }
+    } else if (event.event_type === "interaction.created") {
+      id = event.interaction?.id;
     } else if (event.event_type === "interaction.completed") {
       tokens = event.interaction?.usage?.total_tokens ?? 0;
+      id = event.interaction?.id ?? id;
     }
   }
-  return { text, tokens };
+  return { text, tokens, id };
 }
 
 export type ThinkingLevel = "low" | "medium" | "high";
@@ -43,11 +47,16 @@ export async function askJson<T>(opts: {
   media?: MediaRef[];
   /** When set, the call streams and this receives Argon's thought summary as it grows (the live "thinking" line of the run page). */
   onThought?: (summary: string) => void;
+  /** Continue an earlier interaction (server-side conversation state): `prompt` is then only the new turn. Schema, system instruction and thinking level are interaction-scoped, so they are sent again. */
+  previousInteractionId?: string;
+  /** Receives the id of the interaction, to continue it later. */
+  onInteractionId?: (id: string) => void;
 }): Promise<T> {
   let prompt = opts.prompt;
   for (let attempt = 1; ; attempt++) {
     const request = {
       model: MODELS.brain,
+      ...(opts.previousInteractionId ? { previous_interaction_id: opts.previousInteractionId } : {}),
       input: opts.media?.length
         ? [...opts.media.map((m) => ({ type: m.kind, uri: m.uri, mime_type: m.mimeType })), { type: "text" as const, text: prompt }]
         : prompt,
@@ -60,10 +69,12 @@ export async function askJson<T>(opts: {
       const r = await withRetry(() => streamText(request, opts.onThought!));
       opts.budget.add(r.tokens);
       text = r.text;
+      if (r.id) opts.onInteractionId?.(r.id);
     } else {
       const r = await withRetry(() => gemini().interactions.create({ ...request, stream: false }));
       opts.budget.add(r.usage?.total_tokens);
       text = r.output_text ?? "";
+      if (r.id) opts.onInteractionId?.(r.id);
     }
     try {
       return JSON.parse(text) as T;
