@@ -14,6 +14,7 @@ Cluster: Atlas **M10** (dedicated, 2 GB RAM, 10 GB storage). Automated Embedding
 | `run_events` | One document per agent event. Kept separate from `runs` so documents do not grow without bound |
 | `bug_memory` | Root cause, isolated variable, failing test, diff, outcome, text used for embeddings |
 | `approvals` | Who approved what and when |
+| `pr_events` | History of a run's pull request: opened, review activity, merged, closed |
 
 Design rules (from the schema design skill): no unbounded arrays inside a document, embed data that is read together, reference data that grows. Events are the growing part, so they get their own collection with an index on `runId` and `at`.
 
@@ -42,6 +43,7 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 | Hybrid Search | Combine text and vector results, then rerank, for the "seen this before?" step |
 | Atlas Stream Processing | Tickets arrive in `tickets`; a processor reads the change stream, groups them in time windows and writes cluster alerts ("six reports from iPhone Safari in ten minutes") |
 | Change streams | The live timeline subscribes to `run_events` |
+| Transactions | Approving a pull request, and every change to a pull request's state, write `runs`, `approvals` or `pr_events`, `run_events` and `bug_memory` together (`prtrack.ts`, the approve route) |
 
 ## Screenshots and video
 

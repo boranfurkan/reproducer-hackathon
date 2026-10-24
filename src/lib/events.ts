@@ -60,6 +60,14 @@ export interface RunDoc {
   prUrl?: string;
   prNumber?: number;
   prBranch?: string;
+  /** What happened to the pull request since (see prtrack.ts). */
+  prState?: "open" | "merged" | "closed";
+  prCheckedAt?: Date;
+  prMergedAt?: Date;
+  prClosedAt?: Date;
+  prComments?: number;
+  prReviews?: number;
+  prReviewState?: string | null;
   approvedAt?: Date;
   rejectedAt?: Date;
   sandboxCalls?: { label: string; ms: number; tokens: number }[];

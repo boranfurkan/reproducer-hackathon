@@ -3,6 +3,7 @@ import { githubError, requireSession } from '@/lib/api';
 import { isTrustedMedia } from '@/lib/media';
 import { collection } from '@/lib/mongo';
 import type { RunDoc } from '@/lib/events';
+import { syncPr } from '@/lib/prtrack';
 import { startInvestigation } from '@/lib/runner';
 
 // POST: start an investigation (returns at once, the run continues in the background).
@@ -56,5 +57,11 @@ export async function GET() {
     .sort({ createdAt: -1 })
     .limit(20)
     .toArray();
+  // Pull requests that are still open get a fresh look (at most a few at a time, each at most once a minute).
+  const changed = (await Promise.all(docs.filter((d) => d.prNumber && d.prState !== 'merged').slice(0, 6).map((d) => syncPr(d, auth.session.token, 60_000)))).some(Boolean);
+  if (changed) {
+    const fresh = await runs.find({ _id: { $in: docs.map((d) => d._id) } }, { projection: { diff: 0, testContent: 0, fixFiles: 0, sandboxCalls: 0 } }).sort({ createdAt: -1 }).toArray();
+    return NextResponse.json({ runs: fresh.map((d) => ({ ...d, _id: String(d._id) })) });
+  }
   return NextResponse.json({ runs: docs.map((d) => ({ ...d, _id: String(d._id) })) });
 }

@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/api';
 import type { RunDoc, RunEventDoc } from '@/lib/events';
 import { similarFixes } from '@/lib/memory';
 import { collection } from '@/lib/mongo';
+import { syncPr } from '@/lib/prtrack';
 
 // The run and its timeline. The page polls this while the run is going.
 export async function GET(_req: Request, ctx: RouteContext<'/api/runs/[id]'>) {
@@ -14,6 +15,8 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/runs/[id]'>) {
   const runs = await collection<RunDoc>('runs');
   const run = await runs.findOne({ _id: new ObjectId(id), userLogin: auth.session.login });
   if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 });
+  // Keep the pull request up to date (reviews, merged, closed) while somebody is looking at the run.
+  if (run.prNumber && (await syncPr(run, auth.session.token))) Object.assign(run, await runs.findOne({ _id: run._id }));
   // A run that is still "running" long after it started lost its server process (a restart): say so instead of spinning forever.
   if (run.status === 'running' && Date.now() - run.createdAt.getTime() > 40 * 60_000) {
     run.status = 'failed';

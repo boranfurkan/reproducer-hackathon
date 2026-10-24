@@ -30,6 +30,8 @@ export interface BugMemoryDoc {
   isolatedVariable: string;
   environment: Pick<EnvProfile, "engine" | "locale" | "timezoneId"> & { storageBlocked: boolean; mobile: boolean };
   diff: string;
+  /** What happened to the pull request: recall trusts merged fixes more and closed ones less. */
+  outcome?: "open" | "merged" | "closed";
   /** The text that is embedded for semantic search. */
   memoryText: string;
   createdAt: Date;
@@ -44,9 +46,13 @@ export interface MemoryHit {
   file: string;
   isolatedVariable: string;
   environment: BugMemoryDoc["environment"];
-  /** Reciprocal-rank-fusion score; only meaningful relative to the other hits. */
+  /** Reciprocal-rank-fusion score (after the outcome weight); only meaningful relative to the other hits. */
   score: number;
+  outcome?: BugMemoryDoc["outcome"];
 }
+
+/** Merged fixes are proven in review, closed pull requests were not wanted: recall nudges its ranking accordingly. */
+const OUTCOME_WEIGHT = { merged: 1.25, open: 1, closed: 0.6 } as const;
 
 /** The three Atlas search index definitions. */
 export const memoryIndexes = [
@@ -132,10 +138,11 @@ export async function recallSimilar(queryText: string, limit = 3): Promise<Memor
           },
         },
         { $addFields: { score: { $meta: "scoreDetails" } } },
-        { $limit: limit },
+        { $limit: limit * 2 },
       ])
       .toArray();
-    return docs.map((d) => ({
+    return docs
+      .map((d) => ({
       id: String(d._id),
       repo: d.repo,
       issueNumber: d.issueNumber,
@@ -144,8 +151,11 @@ export async function recallSimilar(queryText: string, limit = 3): Promise<Memor
       file: d.file,
       isolatedVariable: d.isolatedVariable,
       environment: d.environment,
-      score: Number(d.score?.value ?? 0),
-    }));
+      score: Number(d.score?.value ?? 0) * OUTCOME_WEIGHT[(d.outcome as keyof typeof OUTCOME_WEIGHT) ?? "open"],
+      outcome: d.outcome,
+    }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
   } catch (e) {
     console.error("recallSimilar failed:", (e as Error).message);
     return [];
@@ -153,17 +163,17 @@ export async function recallSimilar(queryText: string, limit = 3): Promise<Memor
 }
 
 /** Past fixes whose diff looks like this one (voyage-code-4 embeddings). */
-export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string }[]> {
+export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string; outcome?: string }[]> {
   try {
     const col = await collection<BugMemoryDoc>("bug_memory");
     const docs = await col
-      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1, isolatedVariable: 1 } }])
+      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1, isolatedVariable: 1, outcome: 1 } }])
       .toArray();
     return docs
       .filter((d) => !excludeRunId || String(d.runId) !== excludeRunId)
       .slice(0, limit)
       
-      .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, file: d.file, isolatedVariable: String(d.isolatedVariable ?? "") }));
+      .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, file: d.file, isolatedVariable: String(d.isolatedVariable ?? ""), outcome: d.outcome }));
   } catch (e) {
     console.error("similarFixes failed:", (e as Error).message);
     return [];

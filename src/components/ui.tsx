@@ -51,8 +51,12 @@ export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode
 }
 
 /** The chip for a run, in words. `inList` uses the shorter wording of the dashboard ("Waiting for you"). */
-export function runStatus(run: Pick<RunView, 'status' | 'prUrl' | 'rejectedAt'>, inList = false): { tone: Tone; label: string } {
-  if (run.prUrl) return { tone: 'verified', label: 'PR opened' };
+export function runStatus(run: Pick<RunView, 'status' | 'prUrl' | 'rejectedAt' | 'prState'>, inList = false): { tone: Tone; label: string } {
+  if (run.prUrl) {
+    if (run.prState === 'merged') return { tone: 'verified', label: 'PR merged' };
+    if (run.prState === 'closed') return { tone: 'stopped', label: 'PR closed' };
+    return { tone: 'verified', label: 'PR opened' };
+  }
   if (run.rejectedAt) return { tone: 'stopped', label: 'Rejected' };
   switch (run.status) {
     case 'running': return { tone: 'running', label: 'Running' };
@@ -64,7 +68,7 @@ export function runStatus(run: Pick<RunView, 'status' | 'prUrl' | 'rejectedAt'>,
   }
 }
 
-export function RunStatusChip({ run, inList = false }: { run: Pick<RunView, 'status' | 'prUrl' | 'rejectedAt'>; inList?: boolean }) {
+export function RunStatusChip({ run, inList = false }: { run: Pick<RunView, 'status' | 'prUrl' | 'rejectedAt' | 'prState'>; inList?: boolean }) {
   const s = runStatus(run, inList);
   return <StatusChip tone={s.tone}>{s.label}</StatusChip>;
 }

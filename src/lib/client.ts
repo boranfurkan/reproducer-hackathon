@@ -102,6 +102,12 @@ export interface RunView {
   fixFiles?: { path: string; content: string }[];
   prUrl?: string;
   prNumber?: number;
+  prState?: 'open' | 'merged' | 'closed';
+  prComments?: number;
+  prReviews?: number;
+  prReviewState?: string | null;
+  prMergedAt?: string;
+  prClosedAt?: string;
   rejectedAt?: string;
   issueUrl?: string;
   otherProblems?: { profile: string; problem: string }[];
@@ -122,6 +128,8 @@ export interface SimilarFix {
   title: string;
   file: string;
   isolatedVariable?: string;
+  /** What happened to that fix's pull request. */
+  outcome?: 'open' | 'merged' | 'closed';
 }
 
 export interface FacetBucket {

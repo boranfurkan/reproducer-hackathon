@@ -4,7 +4,8 @@ import { requireSession } from '@/lib/api';
 import { buildPrBody, pullRequestTitle } from '@/lib/agent/pr';
 import type { ApprovalDoc, RunDoc, RunEventDoc } from '@/lib/events';
 import { openFixPullRequest } from '@/lib/github';
-import { collection } from '@/lib/mongo';
+import { collection, mongoClient } from '@/lib/mongo';
+import type { PrEventDoc } from '@/lib/prtrack';
 
 // The approval gate: nothing is pushed to GitHub until the developer clicks this.
 export async function POST(_req: Request, ctx: RouteContext<'/api/runs/[id]/approve'>) {
@@ -37,17 +38,27 @@ export async function POST(_req: Request, ctx: RouteContext<'/api/runs/[id]/appr
       body: await buildPrBody(run, issueNumber),
       files: [...run.fixFiles, { path: 'tests/repro.spec.js', content: run.testContent }],
     });
-    await runs.updateOne({ _id: run._id }, { $set: { prUrl: pr.url, prNumber: pr.number, prBranch: pr.branch } });
-    await (await collection<ApprovalDoc>('approvals')).insertOne({ runId: run._id, login: auth.session.login, at: new Date(), prUrl: pr.url, branch: pr.branch });
-    const events = await collection<RunEventDoc>('run_events');
-    await events.insertOne({
-      runId: run._id,
-      at: new Date(),
-      seq: await events.countDocuments({ runId: run._id }),
-      atMs: Date.now() - run.createdAt.getTime(),
-      type: 'pr_opened',
-      summary: `Pull request #${pr.number} opened: ${pr.url}`,
-    });
+    // The approval, the run, the timeline entry and the PR history are one transaction: they are all written or none is.
+    const session = (await mongoClient()).startSession();
+    try {
+      await session.withTransaction(async () => {
+        const at = new Date();
+        const events = await collection<RunEventDoc>('run_events');
+        await runs.updateOne({ _id: run._id }, { $set: { prUrl: pr.url, prNumber: pr.number, prBranch: pr.branch, prState: 'open', prCheckedAt: at, prComments: 0, prReviews: 0 } }, { session });
+        await (await collection<ApprovalDoc>('approvals')).insertOne({ runId: run._id, login: auth.session.login, at, prUrl: pr.url, branch: pr.branch }, { session });
+        await events.insertOne(
+          { runId: run._id, at, seq: await events.countDocuments({ runId: run._id }, { session }), atMs: at.getTime() - run.createdAt.getTime(), type: 'pr_opened', summary: `Pull request #${pr.number} opened: ${pr.url}` },
+          { session },
+        );
+        await (await collection<PrEventDoc>('pr_events')).insertOne({ runId: run._id, repo: run.repo, prNumber: pr.number, at, kind: 'opened', state: 'open', comments: 0, reviews: 0 }, { session });
+      });
+    } catch (e) {
+      // The pull request exists on GitHub, so the developer must not lose the link: record the essentials without the transaction.
+      console.error('approval transaction failed:', (e as Error).message);
+      await runs.updateOne({ _id: run._id }, { $set: { prUrl: pr.url, prNumber: pr.number, prBranch: pr.branch, prState: 'open' } });
+    } finally {
+      await session.endSession();
+    }
     return NextResponse.json({ prUrl: pr.url, number: pr.number });
   } catch (e) {
     await runs.updateOne({ _id: run._id }, { $unset: { approvedAt: '' } });

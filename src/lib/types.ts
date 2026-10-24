@@ -64,6 +64,7 @@ export type RunEventType =
   | "green"
   | "approval_requested"
   | "pr_opened"
+  | "pr_update"
   | "stopped";
 
 export interface RunEvent {

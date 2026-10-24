@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { Busy } from '../loaders';
 import Mascot from '../mascot/Mascot';
 import { matrixCounts } from './MatrixTable';
-import { Eyebrow, InlineCode, StatusChip, buttonClass } from '../ui';
-import { TEST_FILE, diffStats, splitDiff, type RunView, type SimilarFix } from '@/lib/client';
+import { Eyebrow, InlineCode, RunStatusChip, StatusChip, buttonClass } from '../ui';
+import { TEST_FILE, ago, diffStats, splitDiff, type RunView, type SimilarFix } from '@/lib/client';
 import { approveRun, rejectRun } from '@/lib/hooks';
 
 function DiffBlock({ diff }: { diff: string }) {
@@ -57,9 +57,15 @@ export default function ApprovalCard({ run, similar, onChange }: { run: RunView;
       <section className="flex flex-wrap items-center gap-4 rounded-lg border border-pass/40 bg-purple-900 p-5">
         <Mascot pose="found" size={88} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <StatusChip tone="verified">PR opened</StatusChip>
-          <h2 className="font-mono text-xl font-semibold">Pull request opened</h2>
+          <span className="self-start"><RunStatusChip run={run} /></span>
+          <h2 className="font-mono text-xl font-semibold">{run.prState === 'merged' ? 'Merged: the fix is in.' : run.prState === 'closed' ? 'Closed without merging.' : 'Pull request opened'}</h2>
           <a href={run.prUrl} target="_blank" rel="noreferrer" className="font-mono text-sm [overflow-wrap:anywhere]">{run.prUrl}</a>
+          <p className="font-mono text-xs text-subtle">
+            {run.prState === 'merged' && run.prMergedAt ? `Merged ${ago(run.prMergedAt)} · ` : run.prState === 'closed' && run.prClosedAt ? `Closed ${ago(run.prClosedAt)} · ` : ''}
+            {run.prReviews ? `${run.prReviews} review${run.prReviews === 1 ? '' : 's'}${run.prReviewState ? ` (${run.prReviewState.toLowerCase().replace('_', ' ')})` : ''} · ` : ''}
+            {run.prComments ? `${run.prComments} comment${run.prComments === 1 ? '' : 's'} · ` : ''}
+            {run.prState === 'merged' ? 'Memory now trusts this fix more.' : run.prState === 'closed' ? 'Memory now trusts this fix less.' : 'Watching for reviews, merge or close.'}
+          </p>
         </div>
       </section>
     );
@@ -138,7 +144,7 @@ export default function ApprovalCard({ run, similar, onChange }: { run: RunView;
             {similar.map((f) => (
               <div key={f.id} className="flex flex-col gap-0.5">
                 <a href={`https://github.com/${f.repo}/issues/${f.issueNumber}`} target="_blank" rel="noreferrer" className="text-sm text-foreground no-underline hover:text-hot">{f.title}</a>
-                <span className="font-mono text-xs text-subtle">{f.repo.split('/')[1]}#{f.issueNumber} · {f.file}{f.isolatedVariable ? ` · isolated by ${f.isolatedVariable}` : ''}</span>
+                <span className="font-mono text-xs text-subtle">{f.repo.split('/')[1]}#{f.issueNumber} · {f.file}{f.isolatedVariable ? ` · isolated by ${f.isolatedVariable}` : ''}{f.outcome && f.outcome !== 'open' ? ` · PR ${f.outcome}` : ''}</span>
               </div>
             ))}
           </div>

@@ -23,6 +23,9 @@ async function main() {
   // Approvals belong to a run.
   await database.collection("approvals").createIndex({ runId: 1 }, { name: "approval_run" });
 
+  // Pull request history of a run (opened, review activity, merged, closed): read per run, newest last.
+  await database.collection("pr_events").createIndex({ runId: 1, at: 1 }, { name: "pr_run_time" });
+
   const out: Record<string, string[]> = {};
   for (const name of COLLECTIONS) out[name] = (await database.collection(name).indexes()).map((i) => i.name ?? "?");
   console.log("Collections and indexes:", JSON.stringify(out, null, 2));
