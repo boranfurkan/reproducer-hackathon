@@ -38,3 +38,10 @@ test("the description does not repeat the file name and marks rows that belong t
   assert.match(body, /## Not part of this change/);
   assert.match(body, /every environment that belongs to this issue/);
 });
+
+test("the description explains the platform behaviour with its sources when the investigation found them", async () => {
+  const withWhy = { ...run, explainer: { text: "Turkish has a dotted capital I.", sources: [{ title: "mozilla.org", url: "https://example.test/mdn" }] } } as unknown as RunDoc;
+  const body = await buildPrBody(withWhy, 1, "A short summary.");
+  assert.match(body, /## Why this happens\nTurkish has a dotted capital I\.\n- \[mozilla\.org\]\(https:\/\/example\.test\/mdn\)/);
+  assert.ok(!(await buildPrBody(run, 1, "x")).includes("Why this happens"));
+});

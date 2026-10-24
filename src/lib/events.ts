@@ -57,6 +57,7 @@ export interface RunDoc {
   prTitle?: string;
   /** What a revision needs (see InvestigationResult). */
   replay?: InvestigationResult["replay"];
+  explainer?: InvestigationResult["explainer"];
   proposalInteractionId?: string;
   testContent?: string;
   fixFiles?: { path: string; content: string }[];
@@ -264,6 +265,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           otherProblems: r.otherProblems,
           prTitle: r.prTitle,
           replay: r.replay,
+          explainer: r.explainer,
           proposalInteractionId: r.proposalInteractionId,
           testContent: r.testContent,
           fixFiles: r.fixFiles,

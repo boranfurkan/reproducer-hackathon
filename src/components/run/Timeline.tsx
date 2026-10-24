@@ -15,6 +15,8 @@ interface Entry {
   tone?: 'default' | 'live' | 'pass' | 'fail';
   chips?: string[];
   attach?: string[];
+  sources?: { title: string; url: string }[];
+  proof?: { code: string; output: string };
   observ?: { title: string; text: string; moments?: { at: string; what: string }[] };
   list?: { title: string; sub: string }[];
   matrix?: { rows: MatrixRow[]; after: boolean };
@@ -97,6 +99,11 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       case 'revision':
         out.push({ ...base, who: 'agent', label: 'Revision', summary: line, tone: /failed/i.test(line) ? 'fail' : /verified|pushed/i.test(line) ? 'pass' : undefined });
         break;
+      case 'explained': {
+        const d = e.data as { sources?: { title: string; url: string }[]; proof?: { code: string; output: string } } | undefined;
+        out.push({ ...base, who: 'agent', label: 'Why this happens', summary: line, sources: d?.sources, proof: d?.proof });
+        break;
+      }
       case 'pr_update':
         out.push({ ...base, who: 'agent', label: 'Pull request', summary: line, tone: /merged/i.test(line) ? 'pass' : /closed/i.test(line) ? 'fail' : undefined });
         break;
@@ -171,6 +178,15 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
                     </ol>
                   )}
                   <p className="mt-1.5 rounded-md bg-ink px-3 py-2.5 text-muted">{e.observ.text}</p>
+                </details>
+              )}
+              {e.sources && e.sources.length > 0 && (
+                <span className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs">{e.sources.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer">{s.title} ↗</a>)}</span>
+              )}
+              {e.proof && (
+                <details className="text-sm">
+                  <summary className="cursor-pointer font-mono text-xs font-medium text-subtle">Proof, computed by the model</summary>
+                  <pre className="m-0 mt-1.5 max-h-48 overflow-auto rounded-md bg-code px-3 py-2.5 font-mono text-xs text-muted">{e.proof.code}{e.proof.output ? `\n→ ${e.proof.output}` : ''}</pre>
                 </details>
               )}
               {e.chips && e.chips.length > 0 && <span className="flex flex-wrap gap-1.5">{e.chips.map((c) => <Chip key={c}>{c}</Chip>)}</span>}

@@ -10,14 +10,15 @@ A developer who gets a client ticket like "category pages are empty for some cus
 
 | Time | What happens |
 |---|---|
-| 0:00 | Who the user is. Show issue #1 in the demo repo. |
-| 0:15 | Log in with GitHub, pick the repo and the issue, add a note ("Turkish phone, Chrome") and a screen recording. Click Investigate. |
-| 0:30 | Timeline: Argon's reading of the ticket, the environment profile, the matrix running. |
-| 1:15 | One variable isolated (locale). Root cause in the code. |
+| 0:00 | Who the user is. The issue list: triage badges say which issues look environment-specific and which look like a fix already in memory. |
+| 0:15 | Log in with GitHub (already done), open issue #1, add a note ("Turkish phone, Chrome") and a screen recording. Click Investigate. |
+| 0:30 | The run page is live (MongoDB change stream): Argon's thought summary streams in, the recording's key moments with times, the environment profile, the matrix filling in (two engines per row). |
+| 1:15 | One variable isolated (locale). Root cause in the code, and "Why this happens": the platform rule with sources and a snippet the model ran (Search grounding, code execution). |
 | 1:30 | Failing test goes red on the reporter profile, fix applied, matrix goes green. |
-| 2:00 | Approval card with the fidelity report. Click Approve. The PR opens. |
-| 2:20 | MongoDB: "seen this before" hit on a second bug, search facets by device, a cluster alert from Stream Processing. |
-| 2:45 | One-line close. |
+| 2:00 | Approval card with the fidelity report. Click Approve (one transaction). The PR opens. |
+| 2:15 | A reviewer comments: "Address review feedback". A verified revision appears; Push adds a commit and replies to the reviewer. The PR chip updates itself (merged or closed feeds back into memory). |
+| 2:35 | MongoDB: "Ask the memory" (function calling), Insights (aggregations), the learned panel. |
+| 2:50 | One-line close. |
 
 ## Format (confirmed by another participant, not by the organisers)
 

@@ -59,6 +59,7 @@ export type RunEventType =
   | "memory"
   | "matrix"
   | "root_cause"
+  | "explained"
   | "test_written"
   | "fix_attempt"
   | "green"

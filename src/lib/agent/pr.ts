@@ -46,6 +46,9 @@ export async function buildPrBody(run: RunDoc, issueNumber: number, summary?: st
     "",
     run.rootCause?.explanation ?? "",
     "",
+    ...(run.explainer?.text
+      ? ["## Why this happens", run.explainer.text, run.explainer.sources.length ? run.explainer.sources.map((s) => `- [${s.title}](${s.url})`).join("\n") : "", ""]
+      : []),
     "## How it was reproduced",
     `Reporter environment as reconstructed from the issue: ${env}.`,
     run.decisiveVariables?.length ? `The bug disappears or appears with: ${run.decisiveVariables.join(", ")}.` : "",

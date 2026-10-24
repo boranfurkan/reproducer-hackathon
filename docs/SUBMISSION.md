@@ -23,7 +23,12 @@ What makes it different from a coding agent that "tries things":
 Models and agents used, and how:
 - **gemini-4-argon** (Interactions API): reads the issue, the developer's notes and the reporter's screen recording; builds the environment profile; proposes extra conditions to test; writes the replay plan; finds the root cause from the whole repository (long context); writes the failing test and the fix (thinking level high, JSON-schema output). Retried with feedback if verification fails.
 - **Antigravity managed agent (antigravity-preview-09-2026)**: the sandbox. A Linux environment where the repository is cloned and installed and Playwright (Chromium and WebKit) runs the replay matrix and the tests. Verification (red test, apply the fix, green tests, full matrix, diff) is a single sandbox call, so the verification loop is real test output, not the model's opinion.
-- **gemini-3.8-flash**: writes the pull request summary.
+- **Streaming and thought summaries**: every Argon call streams; the reasoning appears live on the run page.
+- **Conversation state** (`previous_interaction_id`): fix retries and revisions of the pull request continue the model's own interaction, so it keeps its reasoning and the long repository prompt is cached.
+- **Built-in tools together** (Google Search grounding, code execution, URL context): after the root cause, Argon explains the underlying platform rule, cites the specification and proves it with code it runs; the sources go into the pull request.
+- **Function calling**: "Ask the memory" lets the model call read-only functions over MongoDB (hybrid search, grouped counts, the user's runs) to answer questions about past bugs.
+- **Video understanding with timestamps**: key moments of the customer's recording with their times.
+- **gemini-3.8-flash**: writes the pull request summary, triages the issue list (structured output), drafts the reply to a reporter when a bug cannot be reproduced.
 - **Gemini Files API**: carries screen recordings and screenshots; Argon read a 150 KB phone recording in 8 seconds for under 1,000 tokens and listed the exact steps and the environment clues.
 
 Real verification loop: failing test on the reporter's environment before the change, passing after, existing tests green, all required environments pass. Human control: the pull request is only opened after the developer clicks Approve; nothing is pushed before that.
@@ -36,7 +41,7 @@ Tools: GitHub (issues, branch, commit, pull request), a Linux sandbox with Playw
 
 Steps: read the issue and the notes; rebuild the reporter's environment; replay under the reporter, a baseline, one-variable resets and model-proposed extra conditions; isolate the cause; write a failing test; fix; verify (test red then green, whole matrix); show root cause, diff, test and a fidelity report; **wait for approval**; open the pull request.
 
-Where a human approves: the pull request. The approval card shows the root cause, the diff, what could not be reproduced and similar past fixes. Rejecting records the decision and pushes nothing.
+Where a human approves: the pull request, a revision pushed to it after review, and any reply posted to a reporter (each its own click; nothing is written to GitHub before). The approval card shows the root cause, the diff, what could not be reproduced and similar past fixes. Rejecting records the decision and pushes nothing.
 
 Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; runs left unfinished by a restart are marked as interrupted. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
 
@@ -50,7 +55,13 @@ Atlas (M10) is the data store for everything the app knows. Features used and wh
 - **Atlas Search** (lexical, with token fields and facets): full-text search over past bugs; facets on the dashboard (what isolated each bug, engine, locale); fuzzy search over a **device catalog** that turns "Samsng Galaxy Z Flip" or "windows pc 23 inch monitor with nvidia rtx3060" into a realistic environment.
 - **Hybrid Search** (`$rankFusion`, semantic weight 0.7 and lexical 0.3): the "have we seen this before?" step that runs before the model proposes a fix. The hits appear on the timeline and in the prompt as hints.
 - **Atlas Stream Processing** **[only if the processor was started]**: a change stream on new tickets, a hopping window and `$merge` flag several reports from the same environment as one probable bug.
-- Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `environments` (device catalog), `approvals`, `ticket_clusters`.
+- **Change streams**: the run page is pushed live from the run, its timeline events and its pull request history; no polling while connected.
+- **Transactions**: approving a pull request, every change to its state (review, merged, closed) and a revision are single multi-document transactions across `runs`, `approvals`, `pr_events`, `run_events` and `bug_memory`.
+- **Memory that learns**: the outcome of the pull request is stored on the memory entry and weights recall (merged fixes rank higher, closed ones lower).
+- **Aggregation pipelines**: `$group`, `$setWindowFields` (running totals), `$lookup`, `$dateTrunc` power the Insights page and the "Ask the memory" counts.
+- **Schema validation** (`$jsonSchema`) on `runs`, `bug_memory`, `pr_events`, `approvals`; **TTL indexes** on `tickets` and `ticket_clusters`.
+- **Vector search with a similarity score** (cosine, threshold measured on the data) powers the "looks like an issue we already fixed" badges on the issue list.
+- Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `environments` (device catalog), `approvals`, `ticket_clusters`, `pr_events`.
 
 The demo video shows MongoDB in use: **[the memory hit on the timeline, the dashboard facets, the stored events]**.
 

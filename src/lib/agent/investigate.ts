@@ -8,6 +8,7 @@ import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
 import { ablations, baselineProfile, canonicalVariable, describeChange, describeProfile, rowKind, splitByIssue, stressorProfiles } from "./profiles";
+import { explainRootCause, type Explainer } from "./explain";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import { TEST_PATH, between, count, formatMatrix, parseMatrix, verifyFix, type ProfileResult } from "./verify";
 import {
@@ -58,6 +59,8 @@ export interface InvestigationResult {
   replay?: { plan: ReplayPlan; profiles: EnvProfile[]; engines: string[]; required: string[] };
   /** The model interaction that wrote the fix; a revision continues it (server-side conversation state). */
   proposalInteractionId?: string;
+  /** Why the platform behaves this way, with sources and a computed proof (Search grounding, code execution, URL context). */
+  explainer?: Explainer;
   tokensUsed: number;
   environmentId: string | null;
   sandboxCalls: CallTiming[];
@@ -275,6 +278,7 @@ export async function investigate(
 
   let feedback = "";
   let lastInteractionId: string | undefined;
+  let explainP: Promise<Explainer | null> = Promise.resolve(null);
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
     if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
     // The first attempt sends everything. A retry continues the same interaction (server-side conversation state), so the model keeps its own
@@ -309,6 +313,8 @@ export async function investigate(
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
       out.prTitle = p.prTitle;
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
+      // Runs while the sandbox verifies the fix; never required (see explain.ts).
+      explainP = explainRootCause({ rootCause: p.rootCause, file: p.file, explanation: p.explanation, environment: `${focus.engine}, locale ${focus.locale}, timezone ${focus.timezoneId}${focus.storageBlocked ? ", storage blocked" : ""}` }, budget);
     }
     // A fresh staging directory per call (see verifyFix).
     const stage = `/opt/stage/${Date.now().toString(36)}-a${attempt}`;
@@ -327,6 +333,11 @@ export async function investigate(
       out.diff = v.diff;
       out.proposalInteractionId = lastInteractionId;
       say("green", "All tests and every profile pass", { files: p.files.map((f) => f.path) });
+      const explainer = await Promise.race([explainP, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
+      if (explainer) {
+        out.explainer = explainer;
+        say("explained", explainer.text, explainer);
+      }
       say("approval_requested", "Waiting for the developer to approve a pull request");
       return finish();
     }
