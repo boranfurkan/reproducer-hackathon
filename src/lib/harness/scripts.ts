@@ -92,6 +92,7 @@ exit \${PIPESTATUS[0]}
 const BOOT_SH = `#!/bin/bash
 set -e
 URL="$1"
+rm -rf /opt/stage
 export PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
 # Playwright and its browsers live in /opt (fast calls). They are wiped when the environment idles for 15 minutes.
 if [ ! -d /opt/pw/node_modules/playwright ] || [ "$(ls /opt/browsers 2>/dev/null | grep -c -E 'chromium|webkit')" -lt 2 ]; then

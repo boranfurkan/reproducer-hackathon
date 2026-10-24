@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import type { Emit, InvestigationResult, Ticket } from "./agent/investigate";
 import { collection } from "./mongo";
+import { recordMemory } from "./memory";
 import { redact, redactDeep } from "./redact";
 import type { EnvProfile, RunEventType } from "./types";
 
@@ -36,6 +37,20 @@ export interface RunDoc {
   approvedAt?: Date;
   rejectedAt?: Date;
   sandboxCalls?: { label: string; ms: number; tokens: number }[];
+}
+
+/**
+ * One document per investigation, written when the reporter's environment is known. An Atlas Stream Processing job reads these inserts
+ * (change stream), counts reports per environment in a time window and writes alerts to `ticket_clusters` (docs/STREAM-PROCESSING.md).
+ */
+export interface TicketDoc {
+  runId: ObjectId;
+  userLogin?: string;
+  repo: string;
+  issueNumber: number;
+  title: string;
+  createdAt: Date;
+  environment: { engine: string; locale: string; timezoneId: string; mobile: boolean };
 }
 
 /** Written when a developer approves a pull request. */
@@ -101,6 +116,25 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
       data: clip(data, secrets),
     };
     pending.push(events.insertOne(doc).catch((e) => console.error("run_events write failed:", (e as Error).message)));
+    // The profile event is the first moment the reporter's environment is known: record the ticket for the stream processor.
+    if (type === "profile" && data && typeof data === "object") {
+      const p = data as Partial<EnvProfile>;
+      pending.push(
+        collection<TicketDoc>("tickets")
+          .then((c) =>
+            c.insertOne({
+              runId,
+              userLogin: meta.userLogin,
+              repo: `${ticket.repo.owner}/${ticket.repo.name}`,
+              issueNumber: ticket.issueNumber,
+              title: redact(ticket.title, secrets),
+              createdAt: new Date(),
+              environment: { engine: String(p.engine ?? "unknown"), locale: String(p.locale ?? "unknown"), timezoneId: String(p.timezoneId ?? "unknown"), mobile: !!p.isMobile },
+            }),
+          )
+          .catch((e) => console.error("tickets write failed:", (e as Error).message)),
+      );
+    }
   };
 
   const close = async (patch: Partial<RunDoc>) => {
@@ -108,30 +142,51 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
     await runs.updateOne({ _id: runId }, { $set: { ...patch, finishedAt: new Date() } });
   };
 
+  const finishRun = (r: InvestigationResult) =>
+    close(
+      redactDeep(
+        {
+          status: r.status,
+          reason: r.reason,
+          tokensUsed: r.tokensUsed,
+          environmentId: r.environmentId,
+          decisiveVariables: r.decisiveVariables,
+          rootCause: r.rootCause,
+          diff: r.diff,
+          profile: r.understanding?.profile,
+          matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
+          understandingSummary: r.understanding?.summary,
+          testContent: r.testContent,
+          fixFiles: r.fixFiles,
+          sandboxCalls: r.sandboxCalls,
+        },
+        secrets,
+      ),
+    );
+
   return {
     runId,
     emit,
-    finish: (r: InvestigationResult) =>
-      close(
-        redactDeep(
-          {
-            status: r.status,
-            reason: r.reason,
-            tokensUsed: r.tokensUsed,
-            environmentId: r.environmentId,
-            decisiveVariables: r.decisiveVariables,
-            rootCause: r.rootCause,
-            diff: r.diff,
-            profile: r.understanding?.profile,
-            matrix: r.matrix?.map((m) => ({ name: m.name, ok: m.ok, failure: m.failure })),
-            understandingSummary: r.understanding?.summary,
-            testContent: r.testContent,
-            fixFiles: r.fixFiles,
-            sandboxCalls: r.sandboxCalls,
-          },
-          secrets,
-        ),
-      ),
+    finish: async (r: InvestigationResult) => {
+      await finishRun(r);
+      // A verified fix goes into the memory. A failure to store it must not fail the run.
+      if (r.status === "fixed" && r.rootCause && r.diff && r.focusProfile) {
+        const f = r.focusProfile;
+        await recordMemory({
+          runId,
+          repo: `${ticket.repo.owner}/${ticket.repo.name}`,
+          issueNumber: ticket.issueNumber,
+          title: redact(ticket.title, secrets),
+          symptom: r.understanding?.summary ?? "",
+          rootCause: r.rootCause.rootCause,
+          file: r.rootCause.file,
+          explanation: r.rootCause.explanation,
+          isolatedVariable: (r.decisiveVariables?.[0] ?? "unknown").replace(/ \(added to the reporter's profile\)$/, ""),
+          environment: { engine: f.engine, locale: f.locale, timezoneId: f.timezoneId, storageBlocked: !!f.storageBlocked, mobile: f.isMobile },
+          diff: r.diff,
+        }).catch((e) => console.error("recordMemory failed:", (e as Error).message));
+      }
+    },
     fail: (e: unknown) => close({ status: "failed", reason: redact(e instanceof Error ? e.message : String(e), secrets) }),
   };
 }

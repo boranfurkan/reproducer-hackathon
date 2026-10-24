@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Header from './Header';
 import { Badge, Card, ErrorNote } from './ui';
 import { useSession } from './useSession';
-import { ago, api, type RepoItem, type RunView } from '@/lib/client';
+import { ago, api, type ClusterAlert, type MemoryFacets, type RepoItem, type RunView } from '@/lib/client';
 
 function Landing({ error }: { error: string | null }) {
   const steps = [
@@ -38,18 +38,22 @@ function Landing({ error }: { error: string | null }) {
 function Dashboard() {
   const [repos, setRepos] = useState<RepoItem[] | null>(null);
   const [runs, setRuns] = useState<RunView[] | null>(null);
+  const [memory, setMemory] = useState<MemoryFacets | null>(null);
+  const [clusters, setClusters] = useState<ClusterAlert[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
     api<{ repos: RepoItem[] }>('/api/repos').then((r) => setRepos(r.repos)).catch((e: Error) => setError(e.message));
     api<{ runs: RunView[] }>('/api/runs').then((r) => setRuns(r.runs)).catch(() => setRuns([]));
+    api<MemoryFacets>('/api/memory').then(setMemory).catch(() => setMemory(null));
+    api<{ clusters: ClusterAlert[] }>('/api/clusters').then((r) => setClusters(r.clusters)).catch(() => setClusters([]));
   }, []);
 
   const shown = useMemo(() => (repos ?? []).filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase())), [repos, filter]);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px] [&>*]:min-w-0">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Choose a repository</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The one with the bug reports. Public repositories only for now.</p>
@@ -72,6 +76,19 @@ function Dashboard() {
         </ul>
       </div>
       <aside>
+        {clusters.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold">Possible shared bugs</h2>
+            <ul className="mt-2 grid gap-2">
+              {clusters.map((c, i) => (
+                <li key={i} className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
+                  <strong>{c.count} reports</strong> from {c.engine} / {c.locale} in {c.repo}
+                  <span className="block text-xs text-zinc-600 dark:text-zinc-400">{c.users} reporter{c.users === 1 ? '' : 's'}, latest {ago(c.lastAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <h2 className="text-lg font-semibold">Recent investigations</h2>
         <ul className="mt-3 grid gap-2">
           {runs === null && <li className="text-sm text-zinc-500">Loading…</li>}
@@ -89,6 +106,19 @@ function Dashboard() {
             </li>
           ))}
         </ul>
+        {memory && memory.total > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold">What it has learned</h2>
+            <p className="mt-1 text-xs text-zinc-500">{memory.total} verified fixes in memory. What isolated each bug:</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {memory.variable.map((b) => (
+                <li key={b.value} className="rounded-full border border-zinc-300 px-2.5 py-1 text-xs dark:border-zinc-700">{b.value} <span className="text-zinc-500">×{b.count}</span></li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-zinc-500">Engines: {memory.engine.map((b) => `${b.value} ×${b.count}`).join(', ')}</p>
+            <p className="mt-1 text-xs text-zinc-500">Locales: {memory.locale.map((b) => `${b.value} ×${b.count}`).join(', ')}</p>
+          </div>
+        )}
       </aside>
     </div>
   );

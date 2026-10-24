@@ -40,11 +40,11 @@ If this is not green by midday, stop adding features until it is.
 
 ## G3. Inputs and memory (Saturday evening)
 
-- [ ] Video input produces steps
+- [x] Video input produces steps (tested standalone with a recording; the web upload path is built but not clicked through)
 - [ ] Screenshot and text-only fallbacks work
-- [ ] `bug_memory` with Automated Embedding and Vector Search
-- [ ] Atlas Search with facets
-- [ ] Hybrid search with rerank in the "seen before" step
+- [x] `bug_memory` with Automated Embedding and Vector Search
+- [x] Atlas Search with facets (dashboard card; device catalog matching)
+- [x] Hybrid search (`$rankFusion`) in the "seen before" step. No rerank step (not found in the skills' references)
 - [ ] Deployed and the full flow works in production
 
 ## G4. Freeze (Saturday night)

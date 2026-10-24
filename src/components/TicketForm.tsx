@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Shell from './Shell';
 import { buttonClass, Card, ErrorNote } from './ui';
-import { api, type IssueItem } from '@/lib/client';
+import { api, ApiError, type IssueItem, type MediaItem } from '@/lib/client';
 
 const EXAMPLES = [
   'Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish, customer is in Istanbul',
@@ -18,6 +18,8 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
   const [issue, setIssue] = useState<IssueItem | null>(null);
   const [notes, setNotes] = useState('');
   const [env, setEnv] = useState('');
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,6 +29,25 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
       .catch((e: Error) => setError(e.message));
   }, [owner, name, number]);
 
+  async function upload(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/uploads', { method: 'POST', body: form });
+      const json = (await res.json().catch(() => ({}))) as { media?: Omit<MediaItem, 'label'>; error?: string };
+      if (!res.ok || !json.media) throw new ApiError(json.error ?? 'Upload failed', res.status);
+      setMedia((m) => [...m, { ...json.media!, label: file.name }].slice(0, 3));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function start() {
     setBusy(true);
     setError('');
@@ -35,7 +56,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
       env.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
     );
     try {
-      const { runId } = await api<{ runId: string }>('/api/runs', { method: 'POST', body: JSON.stringify({ owner, name, issueNumber: number, notes, envVars }) });
+      const { runId } = await api<{ runId: string }>('/api/runs', { method: 'POST', body: JSON.stringify({ owner, name, issueNumber: number, notes, envVars, media: media.map((m) => ({ uri: m.uri, mimeType: m.mimeType, kind: m.kind, name: m.name })) }) });
       router.push(`/runs/${runId}`);
     } catch (e) {
       setError((e as Error).message);
@@ -47,7 +68,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
     <>
       <Link href={`/repos/${owner}/${name}`} className="text-sm text-zinc-500 hover:underline">← {owner}/{name}</Link>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">Investigate #{number}</h1>
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">The report</h2>
           {issue ? (
@@ -60,7 +81,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             <p className="mt-2 text-sm text-zinc-500">Loading…</p>
           )}
         </Card>
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">Who hit the bug?</span>
             <span className="text-xs text-zinc-500">Device, browser, language, location: whatever the report leaves out. The agent rebuilds this environment.</span>
@@ -71,6 +92,22 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
               ))}
             </span>
           </label>
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Screen recording or screenshot <span className="font-normal text-zinc-500">(optional)</span></span>
+            <span className="text-xs text-zinc-500">The customer&apos;s recording of the bug. The agent watches it for the steps and for clues about their device and language. mp4, webm, mov, png, jpg or webp, up to 50 MB.</span>
+            <input type="file" accept="video/mp4,video/webm,video/quicktime,image/png,image/jpeg,image/webp" disabled={uploading || media.length >= 3} onChange={(e) => { upload(e.target.files); e.target.value = ''; }} className="text-sm file:mr-3 file:rounded-lg file:border file:border-zinc-300 file:bg-transparent file:px-3 file:py-1.5 file:text-sm dark:file:border-zinc-700" />
+            {uploading && <span className="text-xs text-zinc-500">Uploading…</span>}
+            {media.length > 0 && (
+              <ul className="flex flex-wrap gap-2 text-xs">
+                {media.map((m) => (
+                  <li key={m.uri} className="flex items-center gap-1 rounded-full border border-zinc-300 px-2.5 py-1 dark:border-zinc-700">
+                    {m.kind === 'video' ? 'Video' : 'Image'}: {m.label}
+                    <button type="button" aria-label={`Remove ${m.label}`} onClick={() => setMedia((all) => all.filter((x) => x.uri !== m.uri))} className="ml-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">×</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <label className="grid gap-1.5">
             <span className="text-sm font-medium">Environment variables <span className="font-normal text-zinc-500">(optional)</span></span>
             <span className="text-xs text-zinc-500">One KEY=value per line, if the app needs them to start. Sent to the sandbox only; never stored or logged.</span>
@@ -78,7 +115,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
           </label>
           {error && <ErrorNote message={error} />}
           <div>
-            <button onClick={start} disabled={busy || !issue} className={buttonClass.primary}>{busy ? 'Starting…' : 'Investigate'}</button>
+            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass.primary}>{busy ? 'Starting…' : 'Investigate'}</button>
             <p className="mt-2 text-xs text-zinc-500">A run takes a few minutes. Nothing is pushed to GitHub until you approve.</p>
           </div>
         </div>

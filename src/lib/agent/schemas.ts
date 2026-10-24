@@ -62,6 +62,8 @@ export const stressorSchema = {
 export interface Understanding {
   summary: string;
   stressors: Stressor[];
+  /** What the attached recording or screenshot shows: the steps, the symptom and environment clues. Empty without media. */
+  mediaObservations: string;
   expected: string;
   actual: string;
   suspectedVariables: string[];
@@ -76,9 +78,10 @@ export const understandingSchema = {
     actual: { type: "string" },
     suspectedVariables: { type: "array", items: { type: "string" } },
     stressors: { type: "array", items: stressorSchema },
+    mediaObservations: { type: "string" },
     profile: envProfileSchema,
   },
-  required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "profile"],
+  required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "mediaObservations", "profile"],
 };
 
 export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_text" | "expect_count_min";

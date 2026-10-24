@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/api';
 import type { RunDoc, RunEventDoc } from '@/lib/events';
+import { similarFixes } from '@/lib/memory';
 import { collection } from '@/lib/mongo';
 
 // The run and its timeline. The page polls this while the run is going.
@@ -13,6 +14,14 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/runs/[id]'>) {
   const runs = await collection<RunDoc>('runs');
   const run = await runs.findOne({ _id: new ObjectId(id), userLogin: auth.session.login });
   if (!run) return NextResponse.json({ error: 'Run not found' }, { status: 404 });
+  // A run that is still "running" long after it started lost its server process (a restart): say so instead of spinning forever.
+  if (run.status === 'running' && Date.now() - run.createdAt.getTime() > 40 * 60_000) {
+    run.status = 'failed';
+    run.reason = 'The investigation was interrupted (the server restarted). Start it again.';
+    await runs.updateOne({ _id: run._id, status: 'running' }, { $set: { status: 'failed', reason: run.reason, finishedAt: new Date() } });
+  }
   const events = await (await collection<RunEventDoc>('run_events')).find({ runId: run._id }).sort({ seq: 1, at: 1 }).toArray();
-  return NextResponse.json({ run: { ...run, _id: String(run._id) }, events: events.map((e) => ({ ...e, _id: undefined, runId: String(e.runId) })) });
+  // Past fixes whose code change looks like this one (voyage-code-4 embeddings), shown on the approval card.
+  const similar = run.status === 'fixed' && run.diff ? await similarFixes(run.diff, 3, String(run._id)) : [];
+  return NextResponse.json({ similar, run: { ...run, _id: String(run._id) }, events: events.map((e) => ({ ...e, _id: undefined, runId: String(e.runId) })) });
 }

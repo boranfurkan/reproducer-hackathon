@@ -50,6 +50,16 @@ Using the real matrix harness against the demo shop on a local server:
 
 The demo repo's Playwright suite (4 tests) passes in the default environment.
 
+## Results of the agent on these bugs (24 Oct, new key, cold then warm sandbox)
+
+| Issue | Reporter profile | What found it | Result |
+|---|---|---|---|
+| 1 Turkish i | tr-TR Android phone | reporter fails; resetting locale fixes | fixed (earlier runs: about 190 s warm) |
+| 2 blank page | iPhone in-app browser, en-GB | **reporter passes**; the stressor "storage blocked" fails with `The operation is insecure` | fixed in 302 s cold, about 100k tokens; try/catch around `localStorage` in `src/prefs.js` |
+| 3 wrong day | Windows laptop en-US; Argon chose a US timezone | reporter fails; resetting the timezone fixes | fixed in about 4 min warm, about 94k tokens; formats the plain date without the UTC shift |
+
+Note: the diff recorded for run 3 (and likely run 1 of that batch) was contaminated by a stale staging directory (D-23, fixed afterwards); rerun them for clean results.
+
 ## Before the demo
 
 - Push the bugs, create the issues, tag the full set (suggested `v1-all-bugs`) and reset to that tag before every demo run.

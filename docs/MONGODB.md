@@ -27,7 +27,10 @@ Never stored: user env vars, tokens, API keys. Redact before writing events.
 - `src/lib/events.ts`: `startRun()` writes a `runs` document and returns `emit` (writes redacted `run_events`, payloads over 8,000 characters are truncated), `finish` and `fail`. A failed event write is logged and never stops the investigation.
 - `src/lib/redact.ts`: removes Google keys, GitHub tokens, connection strings, bearer tokens and any exact secret values the caller passes in. Verified with a synthetic test: nothing leaked into `runs` or `run_events`.
 - The `runs` document also carries what the approval step needs: `userLogin`, `issueUrl`, `profile`, final `matrix`, `understandingSummary`, `testContent`, `fixFiles`, `diff`, and after approval `prUrl`, `prNumber`, `prBranch`, `approvedAt` (or `rejectedAt`). `approvals` gets one document per opened pull request.
-- Not built yet: `tickets`, `bug_memory`, `environments` writes, every Search and Vector index, Stream Processing.
+- `src/lib/memory.ts`: `bug_memory` writes (`recordMemory`, called from `finish` for verified runs), `recallSimilar` (`$rankFusion`: semantic 0.7, lexical 0.3), `similarFixes` (voyage-code-4 on the diff), `memoryFacets` (`$searchMeta`), and the index definitions. `npm run db:setup` creates the three indexes and waits until they are queryable (all READY on 24 Oct): `bug_memory_vector` (autoEmbed, voyage-4, path `memoryText`, filter `repo`), `bug_memory_code` (autoEmbed, voyage-code-4, path `diff`, filter `repo`), `bug_memory_search` (token and string fields for facets and text).
+- `src/lib/devices.ts`: the `environments` catalog (10 devices), seeded by `db:setup`, with the `environments_search` Atlas Search index; `matchDevices` is a fuzzy `$search`.
+- Verified with synthetic data: recall ranked the matching memory first, the diff search found the matching fix, facets counted correctly, embeddings were ready about 5 s after insert.
+- Not built yet: `tickets` writes, Stream Processing.
 
 ## Feature map
 

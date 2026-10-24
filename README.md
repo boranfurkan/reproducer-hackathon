@@ -31,6 +31,9 @@ Built for Encode London Hackathon 2026. Entered in: Google DeepMind (Gemini 4 Ar
 - [Decisions and open questions](docs/DECISIONS.md)
 - [Checkpoints](docs/CHECKPOINTS.md)
 - [Demo script](docs/DEMO.md)
+- [Demo bugs](docs/DEMO-BUGS.md)
+- [Deploying](docs/DEPLOY.md)
+- [Stream Processing setup](docs/STREAM-PROCESSING.md)
 
 ## Setup
 

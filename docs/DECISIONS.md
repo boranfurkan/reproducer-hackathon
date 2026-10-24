@@ -4,6 +4,14 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 ## Decided
 
+**D-23. Staging directories are unique per call, and boot wipes `/opt/stage`.** Bug found 24 Oct: the fix step copied `/opt/stage/a1/fix/.` into the repo, and that directory survives in a warm sandbox, so the previous run's fix (`src/prefs.js`) was copied into the next run. The "verified" state and the diff on the approval card were contaminated (the fix files themselves were right). Always assume the sandbox keeps files from earlier runs.
+
+**D-22. Verified fixes become memory; recall is a hybrid search.** After a run is verified, `bug_memory` stores the symptom, root cause, file, isolating variable, environment and diff. Before proposing a fix, the loop recalls similar past bugs with `$rankFusion` over a `$vectorSearch` (Automated Embedding, voyage-4, weight 0.7) and a lexical `$search` (weight 0.3); the hits go into the prompt as hints and appear on the timeline ("Memory"). A second `autoEmbed` index (voyage-code-4 on the diff) feeds "Similar past fixes" on the approval card. `$searchMeta` facets (isolating variable, engine, locale) feed the dashboard card "What it has learned". Everything degrades to an empty result if an index is unavailable. Server is 8.0.34, so `$rankFusion` works and `$scoreFusion` (8.3+) does not.
+
+**D-21. A device catalog turns notes into realistic profiles.** `environments` holds 10 devices (Z Flip, S24, Pixel, iPhone, iPad, MacBook M4 in Safari and Chrome, Windows laptop at 125% scaling, 23 inch 1080p desktop, Firefox) with aliases. Atlas Search (fuzzy text over name and aliases) matches the developer's free text ("Samsng Galaxy Z Flip", "windows pc 23 inch monitor with nvidia rtx3060", "macbook m4 pro"); the matches are given to Argon as known-good profiles. Verified matching on typos and on the owner's own phrasing.
+
+**D-20. Recordings and screenshots go through the Gemini Files API.** `POST /api/uploads` (multipart, 50 MB, mp4/webm/mov/png/jpg/webp) stores the file with `ai.files.upload`, waits for ACTIVE, and returns a reference that the ticket carries to Argon (`{type: "video", uri, mime_type}` inside the `input` array). A media reference from the browser is only trusted if its uri starts with `https://generativelanguage.googleapis.com/`. Measured with a 150 KB phone recording: upload 2 s, processing 2 s, Argon 7.6 s, 921 tokens; it listed the exact steps, the symptom and environment clues (portrait phone, touch, a Turkish label) correctly.
+
 **D-19. A run with env vars gets its own fresh sandbox environment, never reused.** Measured: sandbox env vars are fixed when the environment is created; on reuse, changed values are ignored (a run still printed the old value) and the old values linger. Reusing would run with stale values and could leak one user's variables to the next. So `runner.ts` skips the warm environment when env vars are present and does not remember that environment. Cost: a cold install (about 2 minutes) for those runs.
 
 **D-18. Pages are client components that fetch from route handlers.** With `cacheComponents`, reading cookies in a server-rendered page needs a Suspense boundary; fetching on the client avoids that. Pages that read the URL (`useParams`) are wrapped in `<Suspense>` in their `page.tsx`. Route handlers read the encrypted session cookie.
@@ -48,7 +56,7 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 **Q-04. Custom agent with a base environment.** A custom agent can fork a base environment on each call, and sources can mount a GitHub repository at a path. This may be a cleaner way to get a clean checkout per run. Not tested yet.
 
-**Q-05. How long does video analysis take, and what is the size limit?** Not tested yet.
+**Q-05. (answered, see D-20)** Video: about 8 s for a short clip; limit 50 MB in our upload route (Files API allows more). Not yet tested through the web form or with a long recording.
 
 **Q-06. Cost of Atlas Stream Processing.** Check the pricing for the smallest tier before starting a workspace.
 

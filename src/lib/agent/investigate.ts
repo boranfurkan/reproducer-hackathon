@@ -1,6 +1,9 @@
 import { LIMITS } from "../config";
 import { TokenBudget } from "../gemini";
 import { HARNESS_DIR, TARGET_DIR, harnessFiles } from "../harness/scripts";
+import { matchDevices } from "../devices";
+import { recallSimilar } from "../memory";
+import type { MediaRef } from "../media";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
@@ -23,6 +26,8 @@ export interface Ticket {
   body: string;
   /** Free text from the developer: device, browser, language, anything the issue lacks. */
   notes: string;
+  /** Optional screen recording or screenshots from the reporter. */
+  media?: MediaRef[];
 }
 
 export type Emit = (type: RunEventType, summary: string, data?: unknown) => void;
@@ -42,6 +47,8 @@ export interface InvestigationResult {
   plan?: ReplayPlan;
   matrix?: ProfileResult[];
   decisiveVariables?: string[];
+  /** The profile under which the bug reproduced (the reporter's, or the reporter plus one extra condition). */
+  focusProfile?: EnvProfile;
   rootCause?: Pick<Proposal, "rootCause" | "file" | "explanation">;
   testContent?: string;
   fixFiles?: FileChange[];
@@ -109,16 +116,27 @@ export async function investigate(
   const issueText = `Title: ${ticket.title}\n\n${ticket.body}`;
 
   // 1. In parallel: interpret the ticket, read the repo, and boot the sandbox (install, clone).
+  // Known devices that match the developer's notes (Atlas Search over the catalog), so "Samsung Flip Z" gets realistic numbers.
+  const knownDevices = await matchDevices(ticket.notes, 3);
+  if (knownDevices.length) say("hypothesis", `Device catalog matches: ${knownDevices.map((d) => d.name).join(", ")}`, knownDevices);
   const understandP = askJson<Understanding>({
     budget,
     system: SYSTEM,
     level: "medium",
     schema: understandingSchema,
+    media: ticket.media,
     prompt:
       `Bug report from a GitHub issue:\n\n${issueText}\n\nDeveloper notes about the reporter's environment:\n${ticket.notes || "(none)"}\n\n` +
+      (ticket.media?.length
+        ? "A screen recording or screenshot from the reporter is attached. Watch it: in mediaObservations list the exact steps the user takes, what they see that is wrong, and every clue about their environment " +
+          "(interface language, screen size and orientation, device type, browser chrome). Treat those clues as evidence when you build the profile. "
+        : 'Leave mediaObservations as an empty string (no recording was attached). ') +
       "Interpret the report and rebuild the reporter's environment as a profile. Fill in only what the report states or strongly implies; " +
       "use sensible concrete values for the rest (a Turkish Chrome user on an Android phone has locale tr-TR, timezone Europe/Istanbul, a phone-sized viewport with touch). " +
       'Name the profile "reporter". In notEmulated list what Playwright cannot reproduce about this device (real GPU, OEM browser build, real network...). ' +
+      (knownDevices.length
+        ? `Known device profiles that may match the notes (best match first). When one fits, use its engine, viewport, deviceScaleFactor, isMobile, hasTouch and notEmulated exactly; ignore any that do not fit:\n${JSON.stringify(knownDevices)}\n`
+        : "") +
       "suspectedVariables: environment variables that could plausibly matter. " +
       "stressors: up to 3 extra conditions that the report does NOT state but that could plausibly explain why only some users are affected " +
       "(for example storage blocked in private or in-app browsers, a different timezone or locale, dark mode, reduced motion). " +
@@ -146,7 +164,7 @@ export async function investigate(
       level: "medium",
       schema: replayPlanSchema,
       prompt:
-        `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nInterpretation: ${understanding.summary}\nExpected: ${understanding.expected}\nActual: ${understanding.actual}\n\n` +
+        `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nInterpretation: ${understanding.summary}\n${understanding.mediaObservations ? `What the reporter's recording shows: ${understanding.mediaObservations}\n` : ""}Expected: ${understanding.expected}\nActual: ${understanding.actual}\n\n` +
         "Write a replay plan for a headless browser that reaches the place where the bug shows and ends with assertions that describe the CORRECT behaviour, so the plan fails when the bug is present. " +
         "Actions: goto (url relative to the site root, hash routes allowed), click, fill, press, wait, expect_visible, expect_text, expect_count_min. " +
         "Use selectors that exist in the source (prefer data-testid). Keep it short. " +
@@ -189,6 +207,7 @@ export async function investigate(
       ? m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""))
       : [`${focusRow.name.replace("add-", "")} (added to the reporter's profile)`];
   out.decisiveVariables = decisive;
+  out.focusProfile = focus;
   say(
     "hypothesis",
     focusRow.name === "reporter"
@@ -211,6 +230,18 @@ export async function investigate(
   const storageSnippet =
     "test.beforeEach(async ({ context }) => { await context.addInitScript(() => { const t = () => { throw new DOMException('The operation is insecure.', 'SecurityError'); }; " +
     "Object.defineProperty(window, 'localStorage', { get: t }); Object.defineProperty(window, 'sessionStorage', { get: t }); }); });";
+  // Have we seen something like this before? Hybrid search over the memory of past verified fixes; the hits are hints, not answers.
+  const recallQuery = `${understanding.summary} Only affects: ${decisive.join(", ") || "unknown"}. Environment: ${focus.engine}, ${focus.locale}, ${focus.timezoneId}${focus.storageBlocked ? ", storage blocked" : ""}.`;
+  const past = await recallSimilar(recallQuery, 3);
+  if (past.length) {
+    say("memory", `Seen something similar before: ${past.map((h) => `${h.title} (${h.file}, isolated by ${h.isolatedVariable})`).join("; ")}`, past);
+  } else {
+    say("memory", "No similar past bug in memory yet");
+  }
+  const pastText = past.length
+    ? `\n\nSimilar bugs fixed before (hints only; check them against THIS code):\n${past.map((h) => `- ${h.title}: ${h.rootCause} (file ${h.file}, isolated by ${h.isolatedVariable})`).join("\n")}\n`
+    : "";
+
   let feedback = "";
   for (let attempt = 1; attempt <= LIMITS.maxFixAttempts; attempt++) {
     const p = await askJson<Proposal>({
@@ -220,7 +251,7 @@ export async function investigate(
       schema: proposalSchema,
       prompt:
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
-        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.\n\n` +
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.${pastText}\n\n` +
         "Do three things.\n" +
         "1. Find the root cause: the file, and exactly why only this environment is affected.\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +
@@ -239,7 +270,8 @@ export async function investigate(
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
     }
     // Files are staged by the platform (inline sources); the command only copies them into place, in order.
-    const stage = `/opt/stage/a${attempt}`;
+    // A fresh directory per call: a reused sandbox keeps old staged files, and they would be copied into the repo again.
+    const stage = `/opt/stage/${Date.now().toString(36)}-a${attempt}`;
     const staged: SandboxFile[] = [
       { path: `${stage}/test.spec.js`, content: p.testContent },
       ...p.files.map((f) => ({ path: `${stage}/fix/${safeRelPath(f.path)}`, content: f.content })),

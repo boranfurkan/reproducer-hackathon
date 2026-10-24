@@ -1,7 +1,10 @@
-// Run one investigation from the terminal: npm run investigate -- [issue number] [--notes "..."] [--env <environment id>] [--no-db]
-import { mkdirSync, writeFileSync } from "node:fs";
+// Run one investigation from the terminal:
+//   npm run investigate -- [issue number] [--notes "..."] [--video <recording or screenshot>] [--env <environment id>] [--no-db]
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { investigate } from "../src/lib/agent/investigate";
 import { startRun } from "../src/lib/events";
+import { uploadMedia } from "../src/lib/media";
 import { closeMongo } from "../src/lib/mongo";
 
 const args = process.argv.slice(2);
@@ -20,7 +23,16 @@ async function main() {
   const octokit = new Octokit();
   const { data: issue } = await octokit.rest.issues.get({ owner: repo.owner, repo: repo.name, issue_number: issueNumber });
 
-  const ticket = { repo, issueNumber, title: issue.title, body: issue.body ?? "", notes: flag("--notes") ?? "" };
+  let media;
+  const videoPath = flag("--video");
+  if (videoPath) {
+    const ext = path.extname(videoPath).toLowerCase();
+    const mime = ({ ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" } as Record<string, string>)[ext];
+    if (!mime) throw new Error(`Unsupported file type ${ext}`);
+    media = [await uploadMedia(new Blob([readFileSync(videoPath)]), mime, path.basename(videoPath))];
+    console.log(`Uploaded ${path.basename(videoPath)} (${media[0].kind})`);
+  }
+  const ticket = { repo, issueNumber, title: issue.title, body: issue.body ?? "", notes: flag("--notes") ?? "", media };
   const record = args.includes("--no-db") ? null : await startRun(ticket);
   if (record) console.log(`Run ${record.runId} (events are stored in MongoDB)`);
 

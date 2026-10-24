@@ -76,6 +76,43 @@ export interface RunView {
   issueUrl?: string;
 }
 
+export interface MediaItem {
+  uri: string;
+  mimeType: string;
+  kind: 'video' | 'image';
+  name: string;
+  label: string;
+}
+
+export interface SimilarFix {
+  id: string;
+  repo: string;
+  issueNumber: number;
+  title: string;
+  file: string;
+}
+
+export interface FacetBucket {
+  value: string;
+  count: number;
+}
+
+export interface ClusterAlert {
+  repo?: string;
+  engine?: string;
+  locale?: string;
+  count: number;
+  users: number;
+  lastAt: string | null;
+}
+
+export interface MemoryFacets {
+  total: number;
+  variable: FacetBucket[];
+  engine: FacetBucket[];
+  locale: FacetBucket[];
+}
+
 export const ago = (iso: string | null | undefined): string => {
   if (!iso) return '';
   const s = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 1000));

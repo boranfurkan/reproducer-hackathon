@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { githubError, requireSession } from '@/lib/api';
+import { isTrustedMedia } from '@/lib/media';
 import { collection } from '@/lib/mongo';
 import type { RunDoc } from '@/lib/events';
 import { startInvestigation } from '@/lib/runner';
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireSession();
   if ('error' in auth) return auth.error;
   const body = (await request.json().catch(() => null)) as {
-    owner?: string; name?: string; issueNumber?: number; notes?: string; envVars?: Record<string, string>;
+    owner?: string; name?: string; issueNumber?: number; notes?: string; envVars?: Record<string, string>; media?: unknown[];
   } | null;
   if (!body?.owner || !body.name || !Number.isInteger(body.issueNumber)) {
     return NextResponse.json({ error: 'owner, name and issueNumber are required' }, { status: 400 });
@@ -18,6 +19,14 @@ export async function POST(request: NextRequest) {
   const envVars = Object.fromEntries(
     Object.entries(body.envVars ?? {}).filter(([k, v]) => /^[A-Z_][A-Z0-9_]*$/i.test(k) && typeof v === 'string' && v.length > 0),
   );
+  // Guard against runaway usage (the hackathon account is monitored for abuse): few at once, a sensible number per hour.
+  const runsCol = await collection<RunDoc>('runs');
+  const [running, lastHour] = await Promise.all([
+    runsCol.countDocuments({ userLogin: auth.session.login, status: 'running', createdAt: { $gt: new Date(Date.now() - 40 * 60_000) } }),
+    runsCol.countDocuments({ userLogin: auth.session.login, createdAt: { $gt: new Date(Date.now() - 3600_000) } }),
+  ]);
+  if (running >= 2) return NextResponse.json({ error: 'Two investigations are already running. Wait for one to finish.' }, { status: 429 });
+  if (lastHour >= 12) return NextResponse.json({ error: 'That is 12 investigations in the last hour. Try again later.' }, { status: 429 });
   try {
     const runId = await startInvestigation({
       token: auth.session.token,
@@ -27,6 +36,7 @@ export async function POST(request: NextRequest) {
       issueNumber: body.issueNumber as number,
       notes: String(body.notes ?? '').slice(0, 4000),
       envVars,
+      media: (body.media ?? []).filter(isTrustedMedia).slice(0, 3),
     });
     return NextResponse.json({ runId }, { status: 202 });
   } catch (e) {

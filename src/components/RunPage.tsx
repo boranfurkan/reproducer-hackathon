@@ -5,13 +5,14 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import Shell from './Shell';
 import { Badge, buttonClass, Card, ErrorNote } from './ui';
-import { api, type MatrixRow, type RunView, type TimelineEvent } from '@/lib/client';
+import { api, type MatrixRow, type RunView, type SimilarFix, type TimelineEvent } from '@/lib/client';
 
 const LABELS: Record<string, string> = {
   understood: 'Read the report',
   profile: 'Rebuilt the environment',
   boot: 'Sandbox',
   hypothesis: 'Hypothesis',
+  memory: 'Memory',
   matrix: 'Replay matrix',
   root_cause: 'Root cause',
   test_written: 'Failing test',
@@ -54,6 +55,9 @@ function EventRow({ e }: { e: TimelineEvent }) {
       </div>
       <p className="text-sm text-zinc-700 dark:text-zinc-300">{firstLine}</p>
       {rows && <MatrixTable rows={rows} />}
+      {e.type === 'memory' && Array.isArray(e.data) && (
+        <ul className="mt-1 list-inside list-disc text-xs text-zinc-600 dark:text-zinc-400">{(e.data as { id: string; title: string; isolatedVariable: string; file: string; score: number }[]).map((h) => <li key={h.id}>{h.title} <span className="text-zinc-500">(isolated by {h.isolatedVariable}, {h.file})</span></li>)}</ul>
+      )}
       {e.type === 'test_written' && typeof e.data === 'string' && (
         <details className="mt-1 text-xs text-zinc-500"><summary className="cursor-pointer">Test output</summary><pre className="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-zinc-100 p-2 dark:bg-zinc-900">{e.data}</pre></details>
       )}
@@ -71,7 +75,7 @@ function DiffView({ diff }: { diff: string }) {
   );
 }
 
-function Approval({ run, onChange }: { run: RunView; onChange: () => void }) {
+function Approval({ run, similar, onChange }: { run: RunView; similar: SimilarFix[]; onChange: () => void }) {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState('');
   async function act(kind: 'approve' | 'reject') {
@@ -107,6 +111,12 @@ function Approval({ run, onChange }: { run: RunView; onChange: () => void }) {
         </div>
       )}
       {run.diff && <div className="mt-4"><h3 className="mb-1 text-sm font-semibold">Change</h3><DiffView diff={run.diff} /></div>}
+      {similar.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold">Similar past fixes</h3>
+          <ul className="mt-1 list-inside list-disc text-sm text-zinc-600 dark:text-zinc-400">{similar.map((f) => <li key={f.id}>{f.title} <span className="text-zinc-500">({f.repo}#{f.issueNumber}, {f.file})</span></li>)}</ul>
+        </div>
+      )}
       {run.profile?.notEmulated?.length ? (
         <div className="mt-4">
           <h3 className="text-sm font-semibold">What could not be reproduced</h3>
@@ -125,6 +135,7 @@ function Approval({ run, onChange }: { run: RunView; onChange: () => void }) {
 function Run({ id }: { id: string }) {
   const [run, setRun] = useState<RunView | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [similar, setSimilar] = useState<SimilarFix[]>([]);
   const [error, setError] = useState('');
   // Bumping `tick` reloads the run: the poll timer and the approval buttons both do it.
   const [tick, setTick] = useState(0);
@@ -132,11 +143,12 @@ function Run({ id }: { id: string }) {
 
   useEffect(() => {
     let alive = true;
-    api<{ run: RunView; events: TimelineEvent[] }>(`/api/runs/${id}`)
+    api<{ run: RunView; events: TimelineEvent[]; similar: SimilarFix[] }>(`/api/runs/${id}`)
       .then((r) => {
         if (!alive) return;
         setRun(r.run);
         setEvents(r.events);
+        setSimilar(r.similar ?? []);
       })
       .catch((e: Error) => alive && setError(e.message));
     return () => {
@@ -163,7 +175,7 @@ function Run({ id }: { id: string }) {
         <Badge kind={run.status} />
       </div>
       {run.reason && run.status !== 'running' && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{run.reason}</p>}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr] [&>*]:min-w-0">
         <Card>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Timeline</h2>
           <ol className="mt-4 grid gap-4 border-l border-zinc-200 pl-0 dark:border-zinc-800">
@@ -171,8 +183,8 @@ function Run({ id }: { id: string }) {
             {running && <li className="pl-6 text-sm text-zinc-500">Working…</li>}
           </ol>
         </Card>
-        <div className="grid content-start gap-6">
-          {run.status === 'fixed' && <Approval run={run} onChange={reload} />}
+        <div className="grid min-w-0 grid-cols-1 content-start gap-6">
+          {run.status === 'fixed' && <Approval run={run} similar={similar} onChange={reload} />}
           {run.status !== 'fixed' && run.status !== 'running' && (
             <Card>
               <h2 className="font-semibold">Needs a human</h2>

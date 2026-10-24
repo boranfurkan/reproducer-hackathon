@@ -56,6 +56,7 @@ export type RunEventType =
   | "profile"
   | "boot"
   | "hypothesis"
+  | "memory"
   | "matrix"
   | "root_cause"
   | "test_written"

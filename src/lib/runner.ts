@@ -1,6 +1,7 @@
 import { investigate, type Ticket } from "./agent/investigate";
 import { startRun } from "./events";
 import { getIssue } from "./github";
+import type { MediaRef } from "./media";
 import { acquireWarm } from "./warm";
 
 export interface StartInvestigationInput {
@@ -12,6 +13,8 @@ export interface StartInvestigationInput {
   notes: string;
   /** Variables the app under investigation needs. Sandbox only: redacted everywhere, never stored. */
   envVars?: Record<string, string>;
+  /** Screen recording or screenshots already uploaded through /api/uploads. */
+  media?: MediaRef[];
 }
 
 /**
@@ -26,6 +29,7 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
     title: issue.title,
     body: issue.body,
     notes: input.notes,
+    media: input.media,
   };
   const secrets = Object.values(input.envVars ?? {});
   const record = await startRun(ticket, secrets, { userLogin: input.login, issueUrl: issue.url });

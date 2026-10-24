@@ -1,4 +1,6 @@
 // Create the collections and indexes the app needs. Safe to run repeatedly: npm run db:setup
+import { seedDevices } from "../src/lib/devices";
+import { ensureMemoryIndexes } from "../src/lib/memory";
 import { COLLECTIONS, closeMongo, db } from "../src/lib/mongo";
 
 async function main() {
@@ -24,6 +26,11 @@ async function main() {
   const out: Record<string, string[]> = {};
   for (const name of COLLECTIONS) out[name] = (await database.collection(name).indexes()).map((i) => i.name ?? "?");
   console.log("Collections and indexes:", JSON.stringify(out, null, 2));
+
+  console.log("Device catalog: added", await seedDevices(), "devices");
+
+  // Atlas Search and Vector Search indexes on bug_memory (Automated Embedding): created asynchronously by Atlas, so wait for them.
+  console.log("Search indexes on bug_memory:", JSON.stringify(await ensureMemoryIndexes(), null, 2));
 }
 
 main()
