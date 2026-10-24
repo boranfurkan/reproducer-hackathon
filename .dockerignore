@@ -8,3 +8,5 @@ skills
 docs
 *.md
 tsconfig.tsbuildinfo
+.demo
+scripts

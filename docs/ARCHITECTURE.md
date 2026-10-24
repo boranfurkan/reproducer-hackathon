@@ -30,10 +30,14 @@ Long model calls use `background=True` on the Interactions API, so the orchestra
 |---|---|
 | `GET /api/auth/login`, `GET /api/auth/callback/github`, `POST /api/auth/logout`, `GET /api/session` | GitHub OAuth and the encrypted session |
 | `GET /api/repos`, `GET /api/repos/[owner]/[name]/issues` | the user's repositories and a repo's open issues |
-| `POST /api/runs`, `GET /api/runs` | start an investigation (returns 202 with the run id; it continues in the background of the server process), list the user's recent runs |
-| `GET /api/runs/[id]` | the run and its events in order (the page polls this) |
+| `POST /api/runs`, `GET /api/runs` | start an investigation (returns 202 with the run id; it continues in the background of the server process; at most 2 running and 12 per hour per user), list the user's recent runs |
+| `GET /api/runs/[id]` | the run, its events in order (the page polls this) and similar past fixes (voyage-code-4) for the approval card; a run still "running" after 40 minutes is marked interrupted |
 | `POST /api/runs/[id]/approve` | the approval gate: claims the run, opens the pull request, writes `approvals` and a `pr_opened` event |
 | `POST /api/runs/[id]/reject` | records a rejection; nothing is pushed |
+| `POST /api/uploads` | a screen recording or screenshot (multipart, 50 MB) goes to the Gemini Files API; returns a reference for the ticket |
+| `POST /api/warm` | called when the ticket form opens: starts installing Playwright and cloning the repository in the background; an investigation waits for it |
+| `GET /api/memory` | what the memory has learned (Atlas Search facets) for the dashboard |
+| `GET /api/clusters` | shared-bug alerts written by the Stream Processing job (empty until it runs) |
 
 Every run route checks that the run belongs to the signed-in user. Pages: `/`, `/repos/[owner]/[name]`, `/repos/[owner]/[name]/issues/[number]`, `/runs/[id]`.
 

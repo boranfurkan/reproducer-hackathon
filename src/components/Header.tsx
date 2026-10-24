@@ -16,8 +16,10 @@ export default function Header({ user }: { user: SessionUser | null }) {
         <Link href="/" className="text-lg font-semibold tracking-tight">ReProducer</Link>
         {user ? (
           <div className="flex items-center gap-3 text-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={user.avatar} alt="" className="h-7 w-7 rounded-full" />
+            {user.avatar && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatar} alt="" className="h-7 w-7 rounded-full" />
+            )}
             <span>{user.login}</span>
             <button onClick={logout} className={buttonClass.secondary}>Log out</button>
           </div>

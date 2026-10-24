@@ -33,7 +33,8 @@ export async function POST(_req: Request, ctx: RouteContext<'/api/runs/[id]/appr
       owner,
       repo,
       issueNumber,
-      title: `Fix: ${run.rootCause?.rootCause.slice(0, 70) ?? run.title}`,
+      // One line, no stray whitespace: it becomes the commit subject and the pull request title.
+      title: `Fix: ${(run.rootCause?.rootCause ?? run.title).replace(/\s+/g, ' ').trim().slice(0, 70)}`,
       body: await buildPrBody(run, issueNumber),
       files: [...run.fixFiles, { path: 'tests/repro.spec.js', content: run.testContent }],
     });

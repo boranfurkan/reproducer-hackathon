@@ -35,7 +35,7 @@ If this is not green by midday, stop adding features until it is.
 - [x] GitHub login (hand-written OAuth, code complete; the full browser login has not been exercised yet), repo list, issue list
 - [x] Ticket form with notes, optional env vars (env vars: see D-19)
 - [x] Live timeline from events (polls every 2.5 s)
-- [x] Approval card, approve and reject routes, PR creation code. **Not yet exercised against GitHub** (needs the owner's login; opening a real PR needs approval)
+- [x] Approval card, approve and reject routes, PR creation code. **Verified against a mock GitHub API; not yet against the real one** (needs the owner's login; opening a real PR needs approval)
 - [ ] Bugs 2 and 3: written and verified locally in the demo repo (see DEMO-BUGS.md); **not pushed, issues not created, agent not yet run on them**
 
 ## G3. Inputs and memory (Saturday evening)

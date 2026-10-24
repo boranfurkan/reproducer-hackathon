@@ -10,7 +10,8 @@
     "investigate": "tsx --env-file=.env.local scripts/investigate.ts",
     "typecheck": "tsc --noEmit",
     "db:setup": "tsx --env-file=.env.local scripts/setup-db.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "demo:record": "tsx --env-file=.env.local scripts/record-demo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "playwright": "^1.64.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

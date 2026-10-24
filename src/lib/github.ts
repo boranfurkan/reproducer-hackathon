@@ -1,7 +1,9 @@
-import { Octokit } from "octokit";
+import type { Octokit } from "octokit";
 
-export function octokitFor(token: string): Octokit {
-  return new Octokit({ auth: token });
+/** `baseUrl` is only for tests (a local mock of the GitHub API). octokit is ESM-only, so it is imported dynamically. */
+export async function octokitFor(token: string, baseUrl?: string): Promise<Octokit> {
+  const { Octokit } = await import("octokit");
+  return new Octokit({ auth: token, ...(baseUrl ? { baseUrl } : {}) });
 }
 
 export interface RepoSummary {
@@ -15,7 +17,7 @@ export interface RepoSummary {
 }
 
 export async function listRepos(token: string): Promise<RepoSummary[]> {
-  const { data } = await octokitFor(token).rest.repos.listForAuthenticatedUser({
+  const { data } = await (await octokitFor(token)).rest.repos.listForAuthenticatedUser({
     sort: "updated",
     per_page: 60,
     affiliation: "owner,collaborator,organization_member",
@@ -42,12 +44,12 @@ export interface IssueSummary {
 }
 
 export async function listIssues(token: string, owner: string, repo: string): Promise<IssueSummary[]> {
-  const { data } = await octokitFor(token).rest.issues.listForRepo({ owner, repo, state: "open", per_page: 50 });
+  const { data } = await (await octokitFor(token)).rest.issues.listForRepo({ owner, repo, state: "open", per_page: 50 });
   return data.filter((i) => !i.pull_request).map(toIssue);
 }
 
 export async function getIssue(token: string, owner: string, repo: string, number: number): Promise<IssueSummary> {
-  const { data } = await octokitFor(token).rest.issues.get({ owner, repo, issue_number: number });
+  const { data } = await (await octokitFor(token)).rest.issues.get({ owner, repo, issue_number: number });
   return toIssue(data);
 }
 
@@ -63,6 +65,8 @@ export interface PullRequestInput {
   title: string;
   body: string;
   files: { path: string; content: string }[];
+  /** Tests only. */
+  baseUrl?: string;
 }
 
 /**
@@ -70,7 +74,7 @@ export interface PullRequestInput {
  * Commits are authored by the token's owner. Nothing is merged.
  */
 export async function openFixPullRequest(input: PullRequestInput): Promise<{ url: string; number: number; branch: string }> {
-  const gh = octokitFor(input.token).rest;
+  const gh = (await octokitFor(input.token, input.baseUrl)).rest;
   const { owner, repo } = input;
   const { data: info } = await gh.repos.get({ owner, repo });
   const base = info.default_branch;

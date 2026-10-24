@@ -36,6 +36,18 @@ A warm run takes about 3 minutes (Argon about 20 s of it, sandbox about 165 s). 
 
 Show the dashboard last: the memory facets ("what it has learned") and, if Stream Processing is running, a shared-bug alert.
 
+## Recording a draft automatically
+
+`npm run demo:record` drives the real web app through one investigation with Playwright and records it, so there is always a recording to fall back on or to speed up:
+
+```bash
+npm run dev    # or: npm run build && npm start, in another terminal
+GITHUB_TOKEN=$(gh auth token) npm run demo:record -- 2 --notes "iPhone, opened from an in-app browser, language English (UK)"
+# optional: --media path/to/recording.webm to attach a screen recording, --base https://your-host
+```
+
+It signs in with a session cookie built from `AUTH_SECRET` and the token (the GitHub login screen is not recorded), types the notes, clicks Investigate, waits for the run to end and stops at the approval card (it never clicks Approve; do that yourself live). Output in `.demo/<time>/`: `raw.webm`, `fast.webm` (8x, made with the ffmpeg that Playwright ships), and `result.png`. The token is only used to read issues and to start the run.
+
 ## Preparation before going on stage
 
 - Warm the sandbox: run one investigation (the boot installs Playwright into `/opt`, about 2 minutes) and keep pinging the environment at least every 10 minutes, because `/opt` is wiped after 15 idle minutes. Pass the same environment id to the demo run.

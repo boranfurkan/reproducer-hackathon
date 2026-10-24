@@ -6,7 +6,7 @@ Read this first when picking the project up. It records where things stand, how 
 
 | Piece | State |
 |---|---|
-| App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3. The investigation loop, and the product shell: GitHub login, repo and issue pickers, ticket form with notes, env vars and a recording or screenshot, live run page with timeline, approval card with similar past fixes, approve and reject routes, pull request creation, dashboard with memory facets and shared-bug alerts. Builds, typechecks, lints clean; 10 unit tests pass (`npm test`). |
+| App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3. The investigation loop, and the product shell: GitHub login, repo and issue pickers, ticket form with notes, env vars and a recording or screenshot, live run page with timeline, approval card with similar past fixes, approve and reject routes, pull request creation, dashboard with memory facets and shared-bug alerts. Builds, typechecks, lints clean; 13 unit tests pass (`npm test`). The ticket form starts warming the sandbox in the background (`POST /api/warm`); `npm run demo:record` records the web app through an investigation. |
 | Demo repo `boranfurkan/reproducer-hackathon-demo` | "Pagefold Books" with four bugs pushed: issues #1 to #4, tags `v0-buggy` (bug 1 only), `v1-all-bugs` (three) and `v2-four-bugs` (all four). Bug 4 (search lower-cases with the Turkish locale) is a cousin of bug 1 so the memory has something to recall. |
 | Investigation loop | Fixed all three bugs end to end in sandbox runs on 24 Oct: #1 (reporter env, locale), #2 (only the "storage blocked" stressor reproduces it), #3 (timezone). 3 to 5 minutes warm or cold, 80k to 100k tokens, one fix attempt each. |
 | Memory and search (MongoDB) | M10 cluster, six working indexes and collections. `bug_memory` with Automated Embedding (voyage-4 and voyage-code-4) and a lexical Atlas Search index, hybrid recall with `$rankFusion`, facets, a 10-device catalog with fuzzy Atlas Search. All verified with synthetic data; wired into the loop. |
@@ -15,13 +15,15 @@ Read this first when picking the project up. It records where things stand, how 
 | Stream Processing | App side done (`tickets` written, `/api/clusters`, dashboard card). The processor itself needs someone with Atlas access: see `docs/STREAM-PROCESSING.md`. |
 | GitHub OAuth app | Created, credentials in `.env.local`. Callback `http://localhost:3000/api/auth/callback/github`; add the production callback when the host exists. |
 
-Nothing has been deployed. The pull request code has never run against GitHub.
+Nothing has been deployed. The pull request code has only run against a mock GitHub.
 
 ### Verified vs not verified (24 Oct evening)
 
 Verified: production build and the standalone layout; every route unauthenticated; the login redirect and state check; authenticated routes with a forged test session against MongoDB (ownership, event order, approval gating, token never exposed, tampered cookie, upload types, rate limit, stale runs); stressor validation; the harness locally; full sandbox runs on all three bugs; env vars in the sandbox; memory, device matching, facets and diff similarity with synthetic data; the PR description text (`buildPrBody`); UI screenshots at desktop and phone width.
 
-Not verified: a real browser login with GitHub (needs the owner); the repo and issue routes with a real token through the UI; starting a run from the UI; **pull request creation** (`openFixPullRequest`; the auto-mode classifier blocked an attempt to open a real PR with the owner's `gh` token, so it needs the owner's explicit OK); the web upload form in a browser; memory recall with real (not synthetic) entries across runs; the stream processor; `docker build`; the keep-alive timer; a long recording.
+`openFixPullRequest` is verified against a local mock of the GitHub API (`src/lib/github.test.ts`): request order, content, base branch, one commit with `Fixes #N`, no merge, no delete.
+
+Not verified: a real browser login with GitHub (needs the owner); a real pull request on GitHub (the auto-mode classifier blocked an attempt to open one with the owner's `gh` token, so it needs the owner's explicit OK); the web upload form in a browser; memory recall with real (not synthetic) entries across runs; the stream processor; `docker build`; the keep-alive timer; a long recording.
 
 ## How to run things
 
@@ -30,6 +32,7 @@ npm run dev                       # the web app on http://localhost:3000 (log in
 npm ci && npx next typegen        # after a fresh clone or if node_modules/.next were deleted (typegen creates the LayoutProps types that tsc needs)
 npm run typecheck                 # tsc --noEmit
 npm test                          # unit tests (node:test via tsx)
+GITHUB_TOKEN=... npm run demo:record -- 2 --notes "..."   # record the real web app through an investigation (see DEMO.md)
 npx eslint src scripts            # lint
 npm run db:setup                  # create collections and indexes (safe to repeat)
 npm run investigate -- 1 --notes "Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish, customer is in Istanbul"
