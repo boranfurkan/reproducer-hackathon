@@ -184,7 +184,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           rootCause: r.rootCause.rootCause,
           file: r.rootCause.file,
           explanation: r.rootCause.explanation,
-          isolatedVariable: (r.decisiveVariables?.[0] ?? "unknown").replace(/ \(added to the reporter's profile\)$/, ""),
+          isolatedVariable: r.decisiveVariables?.[0] ?? "unknown",
           environment: { engine: f.engine, locale: f.locale, timezoneId: f.timezoneId, storageBlocked: !!f.storageBlocked, mobile: f.isMobile },
           diff: r.diff,
         }).catch((e) => console.error("recordMemory failed:", (e as Error).message));

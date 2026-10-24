@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EnvProfile } from "../types";
-import { BASELINE, ablations, baselineProfile, splitByIssue, stressorProfiles } from "./profiles";
+import { BASELINE, ablations, baselineProfile, canonicalVariable, splitByIssue, stressorProfiles } from "./profiles";
 
 const reporter: EnvProfile = {
   name: "reporter", engine: "webkit", locale: "tr-TR", timezoneId: "Europe/Istanbul", viewport: { width: 390, height: 844 },
@@ -75,4 +75,14 @@ test("when a stressor is the focus, the passing reporter and the other passing p
   const { required, unrelated } = splitByIssue(round1, "add-storage-blocked");
   assert.deepEqual([...required].sort(), ["add-dark", "add-storage-blocked", "baseline", "reporter"]);
   assert.deepEqual(unrelated, []);
+});
+
+test("the isolating variable gets one canonical name whatever the model called its extra condition", () => {
+  assert.equal(canonicalVariable(reporter, { ...reporter, name: "add-blocked-web-storage", storageBlocked: true }), "storage");
+  assert.equal(canonicalVariable(reporter, { ...reporter, name: "add-storage-blocked-in-app-brows", storageBlocked: true }), "storage");
+  assert.equal(canonicalVariable(reporter, { ...reporter, locale: "az-AZ" }), "locale");
+  assert.equal(canonicalVariable(reporter, { ...reporter, timezoneId: "America/Los_Angeles" }), "timezone");
+  assert.equal(canonicalVariable(reporter, { ...reporter, engine: "chromium" }), "engine");
+  assert.equal(canonicalVariable(reporter, { ...reporter, colorScheme: "dark" }), "colorScheme");
+  assert.equal(canonicalVariable(reporter, { ...reporter, reducedMotion: true }), "reducedMotion");
 });

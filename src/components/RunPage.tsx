@@ -54,7 +54,10 @@ function EventRow({ e }: { e: TimelineEvent }) {
         <span className="text-sm font-medium">{LABELS[e.type] ?? e.type}</span>
         <span className="text-xs text-zinc-500">{secs(e.atMs)}</span>
       </div>
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">{firstLine}</p>
+      <p className="text-sm text-zinc-700 dark:text-zinc-300">{firstLine.length > 220 ? `${firstLine.slice(0, 220)}…` : firstLine}</p>
+      {firstLine.length > 220 && (
+        <details className="mt-0.5 text-xs text-zinc-500"><summary className="cursor-pointer">More</summary><p className="mt-1 whitespace-pre-wrap">{firstLine}</p></details>
+      )}
       {e.type === 'understood' && typeof (e.data as { mediaObservations?: string } | undefined)?.mediaObservations === 'string' && (e.data as { mediaObservations: string }).mediaObservations.trim() !== '' && (
         <details className="mt-1 text-xs text-zinc-600 dark:text-zinc-400" open>
           <summary className="cursor-pointer text-zinc-500">What the recording shows</summary>

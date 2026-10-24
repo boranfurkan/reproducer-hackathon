@@ -129,3 +129,18 @@ export function splitByIssue(round1: ReplayRow[], focusName: string): { required
   const required = new Set(round1.filter((r) => r.ok || r.name === focusName || (focus !== undefined && failureSignature(r) === failureSignature(focus))).map((r) => r.name));
   return { required, unrelated: round1.filter((r) => !required.has(r.name)) };
 }
+
+/**
+ * The canonical name of the one thing that separates the failing profile from the reporter's: engine, locale, timezone, storage,
+ * colourScheme, reducedMotion or device. Used to name what isolated a bug, so that memory and facets do not split the same cause
+ * under the different names a model gives its extra conditions ("storage-blocked", "blocked-web-storage").
+ */
+export function canonicalVariable(reporter: EnvProfile, failing: EnvProfile): string {
+  if (failing.storageBlocked !== reporter.storageBlocked && !!failing.storageBlocked !== !!reporter.storageBlocked) return "storage";
+  if (failing.locale !== reporter.locale) return "locale";
+  if (failing.timezoneId !== reporter.timezoneId) return "timezone";
+  if (failing.engine !== reporter.engine) return "engine";
+  if ((failing.colorScheme ?? "light") !== (reporter.colorScheme ?? "light")) return "colorScheme";
+  if (!!failing.reducedMotion !== !!reporter.reducedMotion) return "reducedMotion";
+  return "device";
+}

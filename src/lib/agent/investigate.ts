@@ -7,7 +7,7 @@ import type { MediaRef } from "../media";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, ExecResult, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
-import { ablations, baselineProfile, splitByIssue, stressorProfiles } from "./profiles";
+import { ablations, baselineProfile, canonicalVariable, splitByIssue, stressorProfiles } from "./profiles";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import {
   type FileChange,
@@ -215,17 +215,16 @@ export async function investigate(
       unrelated,
     );
   }
-  const decisive =
-    focusRow.name === "reporter"
-      ? m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""))
-      : [`${focusRow.name.replace("add-", "")} (added to the reporter's profile)`];
+  // What isolates the bug, in canonical names: the variables whose reset makes the reporter pass, or the one condition that was added.
+  const addedVariable = focusRow.name === "reporter" ? null : canonicalVariable(reporter, focus);
+  const decisive = addedVariable ? [addedVariable] : m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""));
   out.decisiveVariables = decisive;
   out.focusProfile = focus;
   say(
     "hypothesis",
-    focusRow.name === "reporter"
-      ? decisive.length ? `Resetting ${decisive.join(", ")} makes the bug disappear` : "No single variable explains it"
-      : `The reporter's profile passes, but adding ${decisive[0]} reproduces the bug`,
+    addedVariable
+      ? `The reporter's profile passes, but adding ${addedVariable} (${focusRow.name.replace("add-", "")}) reproduces the bug`
+      : decisive.length ? `Resetting ${decisive.join(", ")} makes the bug disappear` : "No single variable explains it",
     decisive,
   );
 
@@ -264,7 +263,7 @@ export async function investigate(
       schema: proposalSchema,
       prompt:
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
-        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
         "Do three things.\n" +
         "1. Find the root cause: the file, and exactly why only this environment is affected.\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +

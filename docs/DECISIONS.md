@@ -4,6 +4,8 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 ## Decided
 
+**D-27. What isolated a bug has one canonical name.** For an added condition the model's own label ("storage-blocked", "blocked-web-storage") used to become the isolating variable, which split the same cause into several facet buckets. The name is now derived from what actually differs between the reporter's profile and the failing one (`canonicalVariable`: storage, locale, timezone, engine, colourScheme, reducedMotion, device). Stored entries were normalised once.
+
 **D-26. The Antigravity sandbox agent runs on Argon.** `agent_config.model` is `gemini-4-argon` (`MODELS.sandboxAgentModel`, override with `SANDBOX_AGENT_MODEL`). The agent only executes exact commands, and a one-line call measured 13 to 15 s on Argon against 13 s on the default Flash, with about 10% more tokens. This makes Argon the model behind every step and matches the DeepMind pathway text (Argon inside an Antigravity sandbox). A full investigation on Argon is compared with the Flash runs in STATUS.md.
 
 **D-25. Only installed engines are tried, and a missing engine skips its profiles instead of crashing the matrix.** A stressor proposing Firefox crashed a run: the sandbox has Chromium and WebKit only (Firefox needs `MOZ_DISABLE_CONTENT_SANDBOX=1` and another download), and the harness launched every engine in the job without a guard. Stressors are limited to `chromium` and `webkit`, and the harness skips (and reports as `@@SKIPPED@@`) any engine that cannot launch.

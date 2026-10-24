@@ -42,6 +42,7 @@ function Dashboard() {
   const [clusters, setClusters] = useState<ClusterAlert[]>([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
+  const [showPrivate, setShowPrivate] = useState(false);
 
   useEffect(() => {
     api<{ repos: RepoItem[] }>('/api/repos').then((r) => setRepos(r.repos)).catch((e: Error) => setError(e.message));
@@ -50,13 +51,23 @@ function Dashboard() {
     api<{ clusters: ClusterAlert[] }>('/api/clusters').then((r) => setClusters(r.clusters)).catch(() => setClusters([]));
   }, []);
 
-  const shown = useMemo(() => (repos ?? []).filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase())), [repos, filter]);
+  // Public repositories first, most open issues first: the sandbox can only clone public repositories, and a long list of private names
+  // does not belong on screen (or in a demo recording) unless asked for.
+  const privateCount = (repos ?? []).filter((r) => r.isPrivate).length;
+  const shown = useMemo(
+    () =>
+      (repos ?? [])
+        .filter((r) => showPrivate || !r.isPrivate)
+        .filter((r) => r.fullName.toLowerCase().includes(filter.toLowerCase()))
+        .sort((a, b) => Number(a.isPrivate) - Number(b.isPrivate) || b.openIssues - a.openIssues),
+    [repos, filter, showPrivate],
+  );
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px] [&>*]:min-w-0">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Choose a repository</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The one with the bug reports. Public repositories only for now.</p>
+        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">The one with the bug reports. Public repositories only for now (the sandbox clones over plain HTTPS).</p>
         <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories" className="mt-4 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700" />
         {error && <div className="mt-4"><ErrorNote message={error} /></div>}
         <ul className="mt-4 grid gap-3">
@@ -73,6 +84,13 @@ function Dashboard() {
             </li>
           ))}
           {repos && shown.length === 0 && <li className="text-sm text-zinc-500">No repositories match.</li>}
+          {privateCount > 0 && (
+            <li>
+              <button type="button" onClick={() => setShowPrivate((v) => !v)} className="text-sm text-zinc-500 underline hover:text-zinc-800 dark:hover:text-zinc-200">
+                {showPrivate ? 'Hide private repositories' : `Show ${privateCount} private repositories (cannot be investigated yet)`}
+              </button>
+            </li>
+          )}
         </ul>
       </div>
       <aside>
