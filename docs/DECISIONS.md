@@ -4,6 +4,8 @@ Short log. Newest first within each section. Change a decision by adding a new e
 
 ## Decided
 
+**D-25. Only installed engines are tried, and a missing engine skips its profiles instead of crashing the matrix.** A stressor proposing Firefox crashed a run: the sandbox has Chromium and WebKit only (Firefox needs `MOZ_DISABLE_CONTENT_SANDBOX=1` and another download), and the harness launched every engine in the job without a guard. Stressors are limited to `chromium` and `webkit`, and the harness skips (and reports as `@@SKIPPED@@`) any engine that cannot launch.
+
 **D-24. After the fix, only the profiles that belong to this issue must pass.** A repository can hold several bugs, and the stressor profiles find them: with bugs 1 and 2 in the same app, "reporter plus storage blocked" fails before and after the fix for bug 1. Requiring every profile to pass made the agent fix bug 2 as well and pull `src/prefs.js` into an unrelated change. Now a profile is required to pass if it passed in round 1, is the focus, or failed in round 1 with the same signature as the focus (same failed step and same first console error). Profiles that failed for a different reason are reported as "other problems" (timeline, run page, PR text) and the model is told not to fix them.
 
 **D-23. Staging directories are unique per call, and boot wipes `/opt/stage`.** Bug found 24 Oct: the fix step copied `/opt/stage/a1/fix/.` into the repo, and that directory survives in a warm sandbox, so the previous run's fix (`src/prefs.js`) was copied into the next run. The "verified" state and the diff on the approval card were contaminated (the fix files themselves were right). Always assume the sandbox keeps files from earlier runs.

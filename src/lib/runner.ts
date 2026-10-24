@@ -36,7 +36,7 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
   // Env vars are fixed when a sandbox environment is created (later values are ignored) and would linger in a reused one.
   // So a run with env vars gets its own fresh environment, which is never remembered for reuse. Slower (cold install), but correct and private.
   const hasEnvVars = secrets.length > 0;
-  const warm = hasEnvVars ? { environmentId: null, release: () => undefined } : acquireWarm();
+  const warm = hasEnvVars ? { environmentId: null, release: () => undefined } : await acquireWarm();
 
   void (async () => {
     let environmentId: string | null = warm.environmentId;

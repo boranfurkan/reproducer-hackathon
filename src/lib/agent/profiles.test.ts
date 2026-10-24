@@ -38,10 +38,12 @@ test("stressors: valid ones are applied, invalid, no-op and unknown ones are dro
       { name: "same as reporter", why: "", override: { locale: "tr-TR" } },
       { name: "unknown field only", why: "", override: { shellCommand: "rm -rf /" } as never },
       { name: "dark", why: "", override: { colorScheme: "dark" } },
+      { name: "firefox", why: "", override: { engine: "firefox" } }, // not installed in the sandbox: never offered
     ],
     2,
   );
   assert.equal(out.length, 2);
+  assert.ok(out.every((p) => p.engine !== "firefox"));
   assert.equal(out[0].storageBlocked, true);
   assert.equal(out[0].name, "add-storage-blocked-in-app-brows");
   assert.equal(out[1].timezoneId, "America/Los_Angeles");

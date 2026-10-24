@@ -63,10 +63,16 @@ async function runProfile(browser, p) {
 (async () => {
   const engines = [...new Set(job.profiles.map((p) => p.engine))];
   const browsers = {};
-  for (const e of engines) browsers[e] = await pw[e].launch();
-  const results = await Promise.all(job.profiles.map((p) => runProfile(browsers[p.engine], p)));
+  const skipped = [];
+  // An engine that cannot launch (not installed) skips its profiles instead of crashing the whole matrix.
+  for (const e of engines) {
+    try { browsers[e] = await pw[e].launch(); } catch (err) { skipped.push(e + ": " + String(err.message).split("\n")[0].slice(0, 100)); }
+  }
+  const runnable = job.profiles.filter((p) => browsers[p.engine]);
+  const results = await Promise.all(runnable.map((p) => runProfile(browsers[p.engine], p)));
   await Promise.all(Object.values(browsers).map((b) => b.close()));
   console.log("@@RESULT@@" + JSON.stringify(results) + "@@END@@");
+  if (skipped.length) console.log("@@SKIPPED@@" + JSON.stringify(skipped) + "@@END@@");
 })();
 `;
 

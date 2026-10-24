@@ -23,6 +23,11 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Get the sandbox ready while the form is being filled in (a cold start installs Playwright, about 2 minutes).
+  useEffect(() => {
+    api('/api/warm', { method: 'POST', body: JSON.stringify({ owner, name }) }).catch(() => undefined);
+  }, [owner, name]);
+
   useEffect(() => {
     api<{ issues: IssueItem[] }>(`/api/repos/${owner}/${name}/issues`)
       .then((r) => setIssue(r.issues.find((i) => i.number === number) ?? null))

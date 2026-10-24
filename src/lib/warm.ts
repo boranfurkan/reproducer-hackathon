@@ -1,5 +1,6 @@
 import { LIMITS } from "./config";
 import { TokenBudget } from "./gemini";
+import { HARNESS_DIR, harnessFiles } from "./harness/scripts";
 import { AntigravitySandbox } from "./sandbox/antigravity";
 
 // Sandbox environments lose /opt (Playwright, the repo clone) after 15 idle minutes, and a cold install takes about 2 minutes.
@@ -12,6 +13,8 @@ interface WarmState {
   lastUsed: number;
   pings: number;
   timer?: NodeJS.Timeout;
+  /** A warm-up in progress (installing Playwright, cloning the repository). */
+  warming?: Promise<void>;
 }
 
 const g = globalThis as unknown as { _warm?: WarmState };
@@ -20,9 +23,13 @@ const state = (): WarmState => (g._warm ??= { environmentId: null, busy: false, 
 const PING_EVERY_MS = 9 * 60_000; // under the 15-minute idle limit
 const MAX_PINGS = 8; // about 72 minutes, then stop spending tokens on an unused environment
 
-/** Take the warm environment if it is free and recently used. Returns its id (null means: start a fresh one). */
-export function acquireWarm(): { environmentId: string | null; release: (id: string | null) => void } {
+/**
+ * Take the warm environment if it is free and recently used. Returns its id (null means: start a fresh one).
+ * If a warm-up is in progress it is awaited first (up to 4 minutes), so the run does not start a second cold sandbox.
+ */
+export async function acquireWarm(): Promise<{ environmentId: string | null; release: (id: string | null) => void }> {
   const s = state();
+  if (s.warming) await Promise.race([s.warming, new Promise((r) => setTimeout(r, 4 * 60_000))]);
   const fresh = s.environmentId && Date.now() - s.lastUsed < 14 * 60_000;
   if (s.busy || !fresh) {
     // A concurrent run, or a cold environment: this run starts its own and does not touch the shared one.
@@ -30,6 +37,29 @@ export function acquireWarm(): { environmentId: string | null; release: (id: str
   }
   s.busy = true;
   return { environmentId: s.environmentId, release: (id) => { s.busy = false; if (id) rememberWarm(id); } };
+}
+
+/**
+ * Get a sandbox ready in the background (Playwright installed, repository cloned) while the developer fills in the ticket form.
+ * Returns what happened: already warm, already warming, or a warm-up started now. Never throws.
+ */
+export function warmUp(repoUrl: string): "warm" | "warming" | "started" {
+  const s = state();
+  if (s.warming) return "warming";
+  if (s.busy) return "warm";
+  if (s.environmentId && Date.now() - s.lastUsed < 12 * 60_000) return "warm";
+  s.warming = (async () => {
+    try {
+      const sandbox = new AntigravitySandbox(new TokenBudget(LIMITS.maxTokensPerRun), null);
+      const r = await sandbox.runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh ${repoUrl}`, "warm-up");
+      if (r.stdout.includes("BOOT_OK") && sandbox.environmentId) rememberWarm(sandbox.environmentId);
+    } catch (e) {
+      console.error("warm-up failed:", (e as Error).message);
+    } finally {
+      s.warming = undefined;
+    }
+  })();
+  return "started";
 }
 
 export function rememberWarm(id: string): void {

@@ -282,7 +282,7 @@ export async function investigate(
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
     }
-    // Files are staged by the platform (inline sources); the command only copies them into place, in order.
+    // The files are written into a staging directory first (checksummed heredocs, see the sandbox); the command then copies them into place, in order.
     // A fresh directory per call: a reused sandbox keeps old staged files, and they would be copied into the repo again.
     const stage = `/opt/stage/${Date.now().toString(36)}-a${attempt}`;
     const staged: SandboxFile[] = [

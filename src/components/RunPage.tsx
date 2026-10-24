@@ -24,6 +24,7 @@ const LABELS: Record<string, string> = {
 };
 
 const secs = (ms: number) => `${Math.round(ms / 1000)}s`;
+const formatDuration = (ms: number) => (ms < 90_000 ? `${Math.round(ms / 1000)} s` : `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`);
 
 function MatrixTable({ rows }: { rows: MatrixRow[] }) {
   return (
@@ -54,6 +55,12 @@ function EventRow({ e }: { e: TimelineEvent }) {
         <span className="text-xs text-zinc-500">{secs(e.atMs)}</span>
       </div>
       <p className="text-sm text-zinc-700 dark:text-zinc-300">{firstLine}</p>
+      {e.type === 'understood' && typeof (e.data as { mediaObservations?: string } | undefined)?.mediaObservations === 'string' && (e.data as { mediaObservations: string }).mediaObservations.trim() !== '' && (
+        <details className="mt-1 text-xs text-zinc-600 dark:text-zinc-400" open>
+          <summary className="cursor-pointer text-zinc-500">What the recording shows</summary>
+          <p className="mt-1 whitespace-pre-wrap rounded bg-zinc-100 p-2 dark:bg-zinc-900">{(e.data as { mediaObservations: string }).mediaObservations}</p>
+        </details>
+      )}
       {rows && <MatrixTable rows={rows} />}
       {e.type === 'memory' && Array.isArray(e.data) && (
         <ul className="mt-1 list-inside list-disc text-xs text-zinc-600 dark:text-zinc-400">{(e.data as { id: string; title: string; isolatedVariable: string; file: string; score: number }[]).map((h) => <li key={h.id}>{h.title} <span className="text-zinc-500">(isolated by {h.isolatedVariable}, {h.file})</span></li>)}</ul>
@@ -174,6 +181,12 @@ function Run({ id }: { id: string }) {
         <h1 className="text-2xl font-semibold tracking-tight">#{run.issueNumber} {run.title}</h1>
         <Badge kind={run.status} />
       </div>
+      {run.finishedAt && (
+        <p className="mt-1 text-xs text-zinc-500">
+          Took {formatDuration(new Date(run.finishedAt).getTime() - new Date(run.createdAt).getTime())}
+          {run.tokensUsed ? ` · ${Math.round(run.tokensUsed / 1000)}k tokens` : ''}
+        </p>
+      )}
       {run.reason && run.status !== 'running' && <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{run.reason}</p>}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr] [&>*]:min-w-0">
         <Card>

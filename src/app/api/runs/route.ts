@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     owner?: string; name?: string; issueNumber?: number; notes?: string; envVars?: Record<string, string>; media?: unknown[];
   } | null;
-  if (!body?.owner || !body.name || !Number.isInteger(body.issueNumber)) {
+  // Owner and repository names reach a shell command (the clone URL): only GitHub's own character set is accepted.
+  const validName = (v: unknown) => typeof v === 'string' && /^[A-Za-z0-9_.-]{1,100}$/.test(v);
+  if (!body || !validName(body.owner) || !validName(body.name) || !Number.isInteger(body.issueNumber)) {
     return NextResponse.json({ error: 'owner, name and issueNumber are required' }, { status: 400 });
   }
   // Env vars: keep only plain string pairs with sane names. They go to the sandbox only.
@@ -31,8 +33,8 @@ export async function POST(request: NextRequest) {
     const runId = await startInvestigation({
       token: auth.session.token,
       login: auth.session.login,
-      owner: body.owner,
-      name: body.name,
+      owner: body.owner as string,
+      name: body.name as string,
       issueNumber: body.issueNumber as number,
       notes: String(body.notes ?? '').slice(0, 4000),
       envVars,

@@ -62,7 +62,8 @@ export function baselineProfile(reporter: EnvProfile): EnvProfile {
   return { ...BASELINE, name: "baseline", notEmulated: reporter.notEmulated };
 }
 
-const ENGINES: Engine[] = ["chromium", "webkit", "firefox"];
+// Engines installed in the sandbox. Firefox is not: it needs MOZ_DISABLE_CONTENT_SANDBOX=1 and an extra download.
+const ENGINES: Engine[] = ["chromium", "webkit"];
 
 function validTimezone(tz: string): boolean {
   try {
