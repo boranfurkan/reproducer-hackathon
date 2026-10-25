@@ -5,7 +5,7 @@ import { Busy } from './loaders';
 import { ErrorNote, Eyebrow, Panel, buttonClass } from './ui';
 import { askMemory } from '@/lib/hooks';
 
-const EXAMPLES = ['Which bugs did Turkish-locale users hit?', 'What isolates most bugs, and how many?', 'Are any of my fixes waiting for review?'];
+const EXAMPLES = ['Which bugs only some browsers or settings caused?', 'What isolates most bugs, and how many?', 'Are any of my fixes waiting for review?'];
 
 const TOOL_LABEL: Record<string, string> = { search_memory: 'searched memory', memory_counts: 'counted by', list_my_runs: 'listed your runs' };
 
@@ -36,7 +36,7 @@ export default function AskMemory() {
         <p className="text-[13px] text-subtle">In plain words. It looks things up before it answers.</p>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); ask(question); }} className="flex flex-col gap-2">
-        <input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={400} placeholder="What bugs came from blocked storage?" aria-label="Question for the memory" className="min-w-0 rounded-md border border-purple-700 bg-ink px-3 py-2.5 text-[15px] text-foreground outline-0 placeholder:text-subtle focus:border-purple-500" />
+        <input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={400} placeholder="Which bugs came from browser extensions?" aria-label="Question for the memory" className="min-w-0 rounded-md border border-purple-700 bg-ink px-3 py-2.5 text-[15px] text-foreground outline-0 placeholder:text-subtle focus:border-purple-500" />
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((ex) => (
             <button key={ex} type="button" onClick={() => { setQuestion(ex); ask(ex); }} disabled={busy} className="rounded-sm border border-purple-700 px-2.5 py-1 text-left font-mono text-xs text-muted transition-colors hover:bg-purple-850 hover:text-foreground disabled:opacity-50">{ex}</button>
