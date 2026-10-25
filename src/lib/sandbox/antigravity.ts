@@ -15,10 +15,13 @@ export class AntigravitySandbox implements Sandbox {
   environmentId: string | null;
   readonly calls: CallTiming[] = [];
   /**
-   * Called when a command finds the harness or the clone missing (the environment was replaced or wiped between calls): it should boot again.
-   * The command is then retried once.
+   * What sets up a fresh environment (the harness files and the boot command). When a command finds the harness or the clone missing, the
+   * environment was replaced or wiped between calls (seen under load: /opt is lost when an environment is restored), so the command is
+   * repeated once with the setup in front of it, in the same call: separate "boot, then retry" calls can land in yet another environment.
    */
-  recover?: () => Promise<void>;
+  bootstrap?: { files: SandboxFile[]; cmd: string };
+  /** Told when a call had to set its environment up again. */
+  onRebuilt?: () => void;
   private recovering = false;
 
   constructor(
@@ -37,14 +40,15 @@ export class AntigravitySandbox implements Sandbox {
     const full = files.length ? `${writeFilesCommand(files)} && ${cmd}` : cmd;
     for (let attempt = 1; ; attempt++) {
       const r = await this.runOnce(full, attempt === 1 ? label : `${label}-retry${attempt - 1}`);
-      if (this.recover && !this.recovering && /\/opt\/(harness|target)\S*: No such file or directory/.test(r.stdout + r.stderr)) {
+      if (this.bootstrap && !this.recovering && /\/opt\/(harness|target)\S*: No such file or directory/.test(r.stdout + r.stderr)) {
         this.recovering = true;
         try {
-          await this.recover();
+          this.onRebuilt?.();
+          const healed = `${writeFilesCommand(this.bootstrap.files)} && (${this.bootstrap.cmd}) >/opt/reboot.log 2>&1 && ${full}`;
+          return await this.runOnce(healed, `${label}-rebuilt`);
         } finally {
           this.recovering = false;
         }
-        return this.runOnce(full, `${label}-after-reboot`);
       }
       const bad = r.stdout.includes("PAYLOAD_BAD");
       if (!bad || attempt >= 3) return r;

@@ -93,10 +93,8 @@ export async function investigate(
   const budget = new TokenBudget(opts.deep ? LIMITS.maxDeepTokens : LIMITS.maxTokensPerRun);
   const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null, opts.envVars ?? {});
   const bootCmd = `bash ${HARNESS_DIR}/boot.sh https://github.com/${ticket.repo.owner}/${ticket.repo.name}.git`;
-  sandbox.recover = async () => {
-    say("boot", "The sandbox lost its files; booting it again");
-    await sandbox.runWith(harnessFiles(), bootCmd, "re-boot");
-  };
+  sandbox.bootstrap = { files: harnessFiles(), cmd: bootCmd };
+  sandbox.onRebuilt = () => say("boot", "The sandbox environment was replaced between calls; setting it up again in the same call");
   const events: InvestigationResult["events"] = [];
   // Every Argon call streams its thought summary to the run page when the caller listens (docs: streaming, thinking).
   const ask = <T>(step: string, o: Parameters<typeof askJson<T>>[0]) =>

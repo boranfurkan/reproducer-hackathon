@@ -21,7 +21,18 @@ export interface Triage {
 
 const cache = new Map<string, { at: number; value: Triage[] }>();
 
-export async function triageIssues(repo: string, issues: IssueSummary[]): Promise<Triage[]> {
+const inflight = new Map<string, Promise<Triage[]>>();
+
+/** Concurrent requests for the same repository share one triage (the page can ask twice while the first answer is on its way). */
+export function triageIssues(repo: string, issues: IssueSummary[]): Promise<Triage[]> {
+  const running = inflight.get(repo);
+  if (running) return running;
+  const p = triageNow(repo, issues).finally(() => inflight.delete(repo));
+  inflight.set(repo, p);
+  return p;
+}
+
+async function triageNow(repo: string, issues: IssueSummary[]): Promise<Triage[]> {
   const hit = cache.get(repo);
   if (hit && Date.now() - hit.at < 10 * 60_000 && hit.value.length >= Math.min(issues.length, 12)) return hit.value;
   const list = issues.slice(0, 12);

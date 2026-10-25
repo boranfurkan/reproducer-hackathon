@@ -76,7 +76,7 @@ async function work(run: RunDoc, feedbackText: string): Promise<void> {
   const thinker = thinkingWriter(runs, run._id);
   const warm = await acquireWarm();
   const sandbox = new AntigravitySandbox(budget, warm.environmentId);
-  sandbox.recover = async () => void (await sandbox.runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh https://github.com/${run.repo}.git`, "re-boot"));
+  sandbox.bootstrap = { files: harnessFiles(), cmd: `bash ${HARNESS_DIR}/boot.sh https://github.com/${run.repo}.git` };
   try {
     // The sandbox needs the repository (a warm one has it): boot is quick when everything is already there.
     const boot = await sandbox.runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh https://github.com/${run.repo}.git`, "boot");
