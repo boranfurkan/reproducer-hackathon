@@ -107,6 +107,40 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       case 'pr_update':
         out.push({ ...base, who: 'agent', label: 'Pull request', summary: line, tone: /merged/i.test(line) ? 'pass' : /closed/i.test(line) ? 'fail' : undefined });
         break;
+      case 'deep_step': {
+        const tool = (e.data as { tool?: string } | undefined)?.tool;
+        const label = tool === 'note' ? 'Argon' : tool === 'read' ? 'Read' : tool === 'search' ? 'Search' : tool === 'git' ? 'Git' : tool === 'web' ? 'Web' : 'Investigation';
+        out.push({ ...base, who: 'note', label, summary: e.summary });
+        break;
+      }
+      case 'experiment': {
+        const d = e.data as { rows?: (MatrixRow & { probe?: string })[]; probe?: string } | undefined;
+        const rows = d?.rows ?? [];
+        out.push({
+          ...base,
+          who: 'agent',
+          label: line.split(':')[0],
+          summary: line.slice(line.indexOf(':') + 1).trim(),
+          matrix: { rows, after: false },
+          ...(d?.probe ? { list: rows.map((r) => ({ title: r.name, sub: `probe → ${r.probe ?? ''}` })) } : {}),
+          tone: rows.some((r) => !r.ok) ? 'fail' : undefined,
+        });
+        break;
+      }
+      case 'concluded': {
+        const d = e.data as { reproduced?: boolean; change?: string; file?: string; explanation?: string; evidence?: string[] } | undefined;
+        out.push({
+          ...base,
+          who: 'agent',
+          label: d?.reproduced ? 'Investigation concluded' : 'Could not reproduce',
+          summary: d?.explanation ? `${line} ${d.explanation}` : line,
+          chips: [d?.change, d?.file].filter(Boolean) as string[],
+          list: (d?.evidence ?? []).map((x) => ({ title: x, sub: '' })),
+          pose: d?.reproduced ? 'found' : 'failed',
+          tone: d?.reproduced ? 'pass' : 'fail',
+        });
+        break;
+      }
       case 'pr_opened':
         out.push({ ...base, who: 'agent', label: 'Pull request opened', summary: line, tone: 'pass' });
         break;
@@ -192,7 +226,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
               {e.chips && e.chips.length > 0 && <span className="flex flex-wrap gap-1.5">{e.chips.map((c) => <Chip key={c}>{c}</Chip>)}</span>}
               {e.list && e.list.length > 0 && (
                 <ul className="m-0 flex list-none flex-col gap-1 p-0">
-                  {e.list.map((h) => <li key={h.title} className="text-sm text-muted"><span className="text-foreground">{h.title}</span> <span className="font-mono text-xs text-subtle">({h.sub})</span></li>)}
+                  {e.list.map((h, i) => <li key={`${i}-${h.title}`} className="text-sm text-muted [overflow-wrap:anywhere]"><span className="text-foreground">{h.title}</span>{h.sub ? <> <span className="font-mono text-xs text-subtle">({h.sub})</span></> : null}</li>)}
                 </ul>
               )}
               {e.matrix && (

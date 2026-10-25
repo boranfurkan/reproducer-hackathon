@@ -78,7 +78,7 @@ export async function askMemory(question: string, login: string): Promise<AskRes
         ...(previous ? { previous_interaction_id: previous } : {}),
       }),
     );
-    budget.add(r.usage?.total_tokens);
+    budget.addUsage(r.usage);
     const fcs = ((r.steps ?? []) as Step[]).filter((s) => s.type === "function_call");
     if (!fcs.length) return { answer: (r.output_text ?? "").trim() || "I could not find an answer.", calls, tokens: budget.used };
     const results = [];

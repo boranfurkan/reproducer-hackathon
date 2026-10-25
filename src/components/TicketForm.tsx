@@ -26,6 +26,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [deep, setDeep] = useState(true);
   const [formError, setFormError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const error = formError || issuesError;
@@ -52,7 +53,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
     setBusy(true);
     setFormError('');
     try {
-      router.push(`/runs/${await startRun({ owner, name, issueNumber: number, notes, envText: env, media })}`);
+      router.push(`/runs/${await startRun({ owner, name, issueNumber: number, notes, envText: env, media, deep })}`);
     } catch (e) {
       setFormError((e as Error).message);
       setBusy(false);
@@ -150,10 +151,28 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             </span>
           </label>
 
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 font-mono text-sm font-semibold">How deep</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                { value: true, title: 'Deep investigation', text: 'Reads the code, its history and the framework source, runs experiments in real browsers. Up to about 30 minutes.' },
+                { value: false, title: 'Quick', text: 'One replay matrix, then a fix. About 5 minutes. For bugs with an obvious trigger.' },
+              ].map((o) => (
+                <label key={o.title} className={`flex cursor-pointer flex-col gap-1 rounded-md border px-3.5 py-3 ${deep === o.value ? 'border-purple-400 bg-purple-850' : 'border-purple-700 bg-ink hover:border-purple-500'}`}>
+                  <span className="flex items-center gap-2 font-mono text-[13px] font-semibold">
+                    <input type="radio" name="depth" checked={deep === o.value} onChange={() => setDeep(o.value)} className="accent-purple-400" data-testid={o.value ? 'depth-deep' : 'depth-quick'} />
+                    {o.title}
+                  </span>
+                  <span className="text-[13px] text-subtle">{o.text}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           {error && <ErrorNote message={error} />}
           <div className="flex flex-wrap items-center gap-4 pt-1">
             <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : 'Investigate'}</button>
-            <span className="max-w-[340px] text-[13px] text-subtle">A run takes a few minutes. Nothing is pushed to GitHub until you approve.</span>
+            <span className="max-w-[340px] text-[13px] text-subtle">{deep ? 'A deep run can take half an hour; the page shows every step live.' : 'A quick run takes a few minutes.'} Nothing is pushed to GitHub until you approve.</span>
           </div>
         </div>
       </div>

@@ -1,20 +1,20 @@
 import { MODELS } from "../config";
-import { TokenBudget, gemini, withRetry } from "../gemini";
+import { TokenBudget, type Usage, gemini, withRetry } from "../gemini";
 import type { MediaRef } from "../media";
 
 /**
  * One streamed Interactions call (docs: streaming, thinking). Events: `step.delta` carries `thought_summary` (the reasoning so far, in
  * pieces) and `text` (the answer, in pieces); `interaction.completed` carries the final usage.
  */
-async function streamText(request: Parameters<ReturnType<typeof gemini>["interactions"]["create"]>[0], onThought: (summary: string) => void): Promise<{ text: string; tokens: number; id?: string }> {
+async function streamText(request: Parameters<ReturnType<typeof gemini>["interactions"]["create"]>[0], onThought: (summary: string) => void): Promise<{ text: string; usage?: Usage; id?: string }> {
   const stream = (await gemini().interactions.create({ ...request, stream: true } as never)) as unknown as AsyncIterable<{
     event_type: string;
     delta?: { type: string; text?: string; content?: { text?: string } };
-    interaction?: { id?: string; usage?: { total_tokens?: number } };
+    interaction?: { id?: string; usage?: Usage };
   }>;
   let text = "";
   let thought = "";
-  let tokens = 0;
+  let usage: Usage | undefined;
   let id: string | undefined;
   for await (const event of stream) {
     if (event.event_type === "step.delta" && event.delta) {
@@ -27,11 +27,11 @@ async function streamText(request: Parameters<ReturnType<typeof gemini>["interac
     } else if (event.event_type === "interaction.created") {
       id = event.interaction?.id;
     } else if (event.event_type === "interaction.completed") {
-      tokens = event.interaction?.usage?.total_tokens ?? 0;
+      usage = event.interaction?.usage;
       id = event.interaction?.id ?? id;
     }
   }
-  return { text, tokens, id };
+  return { text, usage, id };
 }
 
 export type ThinkingLevel = "low" | "medium" | "high";
@@ -67,12 +67,12 @@ export async function askJson<T>(opts: {
     let text: string;
     if (opts.onThought) {
       const r = await withRetry(() => streamText(request, opts.onThought!));
-      opts.budget.add(r.tokens);
+      opts.budget.addUsage(r.usage);
       text = r.text;
       if (r.id) opts.onInteractionId?.(r.id);
     } else {
       const r = await withRetry(() => gemini().interactions.create({ ...request, stream: false }));
-      opts.budget.add(r.usage?.total_tokens);
+      opts.budget.addUsage(r.usage);
       text = r.output_text ?? "";
       if (r.id) opts.onInteractionId?.(r.id);
     }

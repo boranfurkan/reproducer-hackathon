@@ -15,6 +15,9 @@ export const LIMITS = {
   maxFixAttempts: 3,
   maxProfilesPerRound: 13,
   maxTokensPerRun: 600_000,
+  // A deep investigation keeps a large context (the framework source) for many turns. This counts new tokens only, but implicit caching
+  // hits on only about half of the chained turns (measured), so a turn over a 300k context often costs the whole context again.
+  maxDeepTokens: 6_000_000,
   retryAttempts: 4,
 } as const;
 

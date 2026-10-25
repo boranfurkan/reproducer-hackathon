@@ -58,6 +58,9 @@ export interface RunDoc {
   /** What a revision needs (see InvestigationResult). */
   replay?: InvestigationResult["replay"];
   explainer?: InvestigationResult["explainer"];
+  deep?: InvestigationResult["deep"];
+  /** "deep" or "quick", chosen on the ticket form. */
+  mode?: "deep" | "quick";
   proposalInteractionId?: string;
   testContent?: string;
   fixFiles?: { path: string; content: string }[];
@@ -182,7 +185,7 @@ export async function appendEvent(run: Pick<RunDoc, "_id" | "createdAt">, type: 
  * Creates the run document and returns an `emit` that stores every event in `run_events` (redacted),
  * plus `finish`/`fail` to close the run. Event writes never throw into the investigation: a failed write is logged.
  */
-export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { userLogin?: string; issueUrl?: string } = {}) {
+export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { userLogin?: string; issueUrl?: string; mode?: "deep" | "quick" } = {}) {
   const runs = await collection<RunDoc>("runs");
   const events = await collection<RunEventDoc>("run_events");
   const t0 = Date.now();
@@ -195,7 +198,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
     notes: redact(ticket.notes, secrets),
     status: "running",
     createdAt: new Date(),
-    tokenCap: LIMITS.maxTokensPerRun,
+    tokenCap: meta.mode === "deep" ? LIMITS.maxDeepTokens : LIMITS.maxTokensPerRun,
     attachments: (ticket.media ?? []).map((m) => ({ kind: m.kind, name: m.name })),
     ...meta,
   });
@@ -266,6 +269,7 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
           prTitle: r.prTitle,
           replay: r.replay,
           explainer: r.explainer,
+          deep: r.deep,
           proposalInteractionId: r.proposalInteractionId,
           testContent: r.testContent,
           fixFiles: r.fixFiles,

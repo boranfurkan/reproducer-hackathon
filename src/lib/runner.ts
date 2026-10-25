@@ -16,6 +16,8 @@ export interface StartInvestigationInput {
   envVars?: Record<string, string>;
   /** Screen recording or screenshots already uploaded through /api/uploads. */
   media?: MediaRef[];
+  /** Deep investigation (tools, experiments, framework source; up to about half an hour) instead of the quick matrix-and-fix. */
+  deep?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
     media: input.media,
   };
   const secrets = Object.values(input.envVars ?? {});
-  const record = await startRun(ticket, secrets, { userLogin: input.login, issueUrl: issue.url });
+  const record = await startRun(ticket, secrets, { userLogin: input.login, issueUrl: issue.url, mode: input.deep ? "deep" : "quick" });
   // Env vars are fixed when a sandbox environment is created (later values are ignored) and would linger in a reused one.
   // So a run with env vars gets its own fresh environment, which is never remembered for reuse. Slower (cold install), but correct and private.
   const hasEnvVars = secrets.length > 0;
@@ -47,6 +49,7 @@ export async function startInvestigation(input: StartInvestigationInput): Promis
         githubToken: input.token,
         envVars: input.envVars,
         onThinking: record.think,
+        deep: input.deep,
         // The Stop button sets a flag on the run; the investigation checks it between steps.
         shouldStop: async () => Boolean((await (await collection<RunDoc>("runs")).findOne({ _id: record.runId }, { projection: { stopRequested: 1 } }))?.stopRequested),
       });

@@ -1,85 +1,29 @@
 # Demo bugs
 
-The target app is `reproducer-hackathon-demo` ("Pagefold Books"). It holds three bugs, each visible only in a specific environment. This file lives in the app repo on purpose: the agent reads the demo repo's code and README, so nothing in that repo may describe the bugs.
+The demo target is [`boranfurkan/reproducer-hackathon-demo`](https://github.com/boranfurkan/reproducer-hackathon-demo): Pagefold Books, a small online bookshop split into five apps in five stacks (React 18.2, Vue 3.4, plain JavaScript, Preact 10, Alpine.js 3.13). Framework files are vendored at pinned versions in `vendor/`; there is no build step (`npm start` serves everything, `npm test` runs Playwright).
 
-State on 24 Oct (evening): bug 1 is pushed with issue #1 and tagged `v0-buggy`. Bugs 2 and 3 are written and verified locally in the demo repo's working tree but **not committed or pushed**, and their issues are **not created**. They need the owner's approval.
+Each bug is one that **code review does not find**: the code looks correct, and the cause is something only some visitors have. Each was proven with plain Playwright before the agent saw it: it fails only under its own condition, in both Chromium and WebKit, and the repository's own tests pass in a normal environment. The retired first set (Turkish casing, blocked storage, timezone day shift, search casing) were plain coding mistakes and are closed.
 
-## Bug 1: category pages empty for Turkish users (pushed, issue #1)
-
-- Code: `src/categories.js`, `slug.toLocaleUpperCase(navigator.language)` turns `fiction` into `FİCTİON` under a Turkish locale, so the API key never matches.
-- Ticket: "Category pages empty for some customers" (customers in Turkey, Chrome on a phone, Turkish language).
-- Notes to enter: `Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish, customer is in Istanbul`.
-- Matrix: the reporter profile fails; resetting the locale makes it pass.
-- Fix: `slug.toUpperCase()`.
-
-## Bug 2: blank page when storage is blocked (local only)
-
-- Code: `src/prefs.js` reads `localStorage` when the module loads, and `src/format.js` imports it, so the whole app fails to start. React never renders, the page is blank, and nothing reaches the server logs. The error is `SecurityError: The operation is insecure` in the browser console.
-- Who is affected: visitors whose browser blocks storage (strict cookie blocking, some in-app browsers, privacy modes).
-- Suggested issue (create it only after approval):
-  - Title: `Shop opens as a blank white page for some visitors`
-  - Body: `A few customers have written in that the shop opens as a completely white page. It is two or three reports a week and I have never seen it myself. Most of them say they tapped a link from Instagram or Facebook. Nothing in the server logs, and it works fine on my own iPhone.`
-- Notes to enter: `iPhone, opened from an in-app browser, language English (UK)`. Storage is deliberately not mentioned.
-- Matrix: the reporter profile and baseline pass. Only the extra condition "storage blocked" fails, with an empty page and the console error. This is what the stressors exist for.
-- Fix: read preferences defensively (try/catch around storage access, fall back to defaults) and make `savePrefs` tolerate failure.
-
-## Bug 3: pickup confirmation shows the previous day west of UTC (local only)
-
-- Code: `src/format.js` `formatDay` calls `new Date("2026-11-05")`, which is midnight UTC, and prints it in the visitor's timezone. The reservation API stores the right plain date, only the confirmation is wrong.
-- Who is affected: visitors in timezones behind UTC (the Americas). London, Europe and Asia look correct, which is why it is hard to see from a developer machine.
-- Suggested issue (create it only after approval):
-  - Title: `Pickup confirmation shows the wrong day for a customer`
-  - Body: `A customer over in the States reserved a book for pickup on 5 November. The confirmation said it would be waiting on 4 November, so she came in a day early and it was not ready. The reservation itself is correct in our system and it looks right for everyone in the office.`
-- Notes to enter: `Chrome on a Windows laptop, language English (US)`. The timezone is deliberately not given.
-- Matrix: the reporter profile may pass depending on the timezone guessed. A timezone stressor such as `America/Los_Angeles` fails. London, Auckland and other locales pass.
-- Fix: parse the plain date as a local date (for example `new Date(y, m - 1, d)`) or format it with `timeZone: "UTC"`.
-
-## Verified locally (24 Oct)
-
-Using the real matrix harness against the demo shop on a local server:
-
-| Bug | Profile | Result |
-|---|---|---|
-| 2 | iPhone-like WebKit profile | pass |
-| 2 | same profile with storage blocked | **fail**, empty page, `The operation is insecure` |
-| 2 | same profile with locale tr-TR | pass |
-| 3 | iPhone-like profile, Europe/London | pass |
-| 3 | baseline | pass |
-| 3 | same profile, America/Los_Angeles | **fail** |
-| 3 | same profile, Pacific/Auckland or en-US locale | pass |
-
-The demo repo's Playwright suite (4 tests) passes in the default environment.
-
-## Bug 4: search finds nothing for Turkish customers (pushed, issue #4)
-
-A deliberate cousin of bug 1, so that the memory has something to recall.
-
-- Code: `src/search.js` lower-cases the query and the titles with `toLocaleLowerCase(navigator.language)`. In Turkish and Azerbaijani a capital `I` becomes a dotless `ı`, so typing `SILK ROAD` searches for `sılk road` and finds nothing.
-- Issue #4: "Search shows no results for some customers" (a customer in Turkey, she types titles in capitals).
-- Notes to enter: `Chrome on a Windows laptop, language Turkish`.
-- Matrix: the Turkish profile fails, so does Azerbaijani; English and German pass (verified locally with the harness, Chromium and WebKit).
-- Fix: compare with a locale-independent lower-casing (`toLowerCase()`) or `localeCompare` with an explicit locale.
-- Demo use: run issue #1 first (its fix is stored in memory), then #4. The timeline should show "Seen something similar before: Category pages empty for some customers".
-- Tag `v2-four-bugs` marks the repo with all four bugs.
-
-## Results of the agent on these bugs (24 Oct evening, clean runs after the staging and required-profile fixes)
-
-Warm sandbox, terminal runner, about 40 s boot, one fix attempt each, diffs contain only the fix and the test.
-
-| Issue | Reporter profile | What found it | Time | Tokens |
+| Issue | App (stack) | What customers see | Real cause | What it takes to find |
 |---|---|---|---|---|
-| 1 Turkish i (with a screen recording attached) | tr-TR Android phone (Z Flip from the catalog) | reporter fails; resetting the locale fixes it | 230 s | 95k |
-| 4 search, Turkish case | tr-TR Windows laptop 1536x864 (from the catalog) | reporter fails; resetting the locale fixes it; **memory recalled issue 1 first** | 266 s | 77k |
-| 2 blank page | iPhone in-app browser, en-GB | **reporter passes**; only the stressor "storage blocked" fails (`The operation is insecure`) | 5 min | 81k |
-| 3 wrong day | Windows laptop en-US; Argon chose a US timezone | reporter fails; resetting the timezone fixes it | 5 min | 85k |
+| #8 | Storefront (React 18.2) | The whole page turns white after removing books from the basket; only customers from Germany | Chrome translates the English shop for German visitors: it replaces every text node with `<font>` elements. `CartSummary` renders the basket summary as a bare text node next to a button; when the basket empties React removes that text node, which is no longer in the document, and `removeChild` throws `NotFoundError`. React 18 unmounts the whole tree. | Thinking of page translation from "customers in Germany" on an English site, reproducing it, reading React's commit path in the vendored `react-dom` source. Fix: wrap the text in an element, or mark the summary `translate="no"`. |
+| #9 | Account (Vue 3.4) | After closing an order, nothing on the page responds | A later accessibility commit added `@media (prefers-reduced-motion: reduce) { * { transition: none !important } }` to the shared theme. The drawer waits for `transitionend` before it removes itself; with no transition that event never fires, so the invisible backdrop stays on top and swallows every click. | Connecting "accessibility settings because motion makes her dizzy" with reduced motion, probing the computed transition duration (0s), finding the commit in the git history. Fix: finish immediately when the duration is 0 (or a timeout fallback). |
+| #10 | Checkout (plain JS) | Pay now does nothing for some customers; no request reaches the server | `/static/js/analytics.js` is blocked by content blockers (its name matches EasyPrivacy-style rules). The submit handler calls `Analytics.identify(...)` before placing the order, so it throws `ReferenceError` and the order is never sent. | Thinking of extensions from "careful about privacy", reproducing with a content blocker, reading the handler. Fix: guard the analytics calls (or a no-op stub). |
+| #11 | Events (Preact) | One of the six marathon sessions is missing for some customers | The marathon runs through the night of 24 to 25 October, when UK clocks go back. Sessions are grouped by their local time label, and in Europe/London both 00:00 UTC and 01:00 UTC are "01:00", so one session disappears. Visitors in zones without a change that night see all six. | Knowing when the UK changes clocks, reproducing with the reporters' timezone, finding the grouping in `lib/timeutil.js`. Fix: key sessions by instant and show the offset (BST/GMT). |
+| #12 | Reader (Alpine.js) | The reading list page is blank on one customer's phone | The vendored helper `tiny-ids` uses `crypto.randomUUID`, `Array.prototype.at` and `structuredClone`, which Safari only has since 15.4. On an iPhone that was never updated past iOS 14 the component throws while it is created and Alpine renders nothing. | Treating "iPhone she hasn't updated in years" as an older engine, reproducing with those APIs removed in WebKit. Fix: fallbacks in the helper. |
 
-Second batch (24 Oct, 22:04 to 22:21, issue 1 driven by a screenshot instead of a recording, Argon as the sandbox agent): 4 of 4 fixed on the first attempt, 77k to 80k tokens, diffs only the fix and the test. Counting every run made after the final success rule (D-24): #1 three runs, #2 three, #3 three, #4 two, all verified on the first attempt (11 of 11). Before D-24, one run needed a second attempt because it was pulled into fixing another bug.
+## Notes to type on the ticket form
 
-Other problems noticed and left alone: while fixing 1 and 4, the "storage blocked" profile also failed with `The operation is insecure` (that is bug 2). The agent reported it ("Other problems noticed") and did not touch `src/prefs.js`.
+What the developer knows about the reporter (the agent rebuilds the environment from this):
 
-Memory: runs 2, 3 and 4 each showed "Seen something similar before" with the earlier fixes. The hits are hints; for bug 2 the recalled category fix was only loosely related and Argon correctly ignored it.
+| Issue | Notes |
+|---|---|
+| #8 | Customer in Munich, Chrome on Windows 11, German is her language. |
+| #9 | MacBook Air, Safari. She told me she changed some accessibility settings on her Mac a while ago because things moving on screen make her dizzy. |
+| #10 | Chrome on a Windows work laptop. He says he is careful about privacy and has a few browser extensions. |
+| #11 | The customers who wrote are in Edinburgh and Manchester. Our agency is in Istanbul and my laptop clock is set to UTC. |
+| #12 | iPhone 8, she hasn't updated it in years, Safari. |
 
-## Before the demo
+## Environment conditions the agent can use
 
-- Push the bugs, create the issues, tag the full set (suggested `v1-all-bugs`) and reset to that tag before every demo run.
-- Do not merge fix PRs until a reset is possible.
+Beyond Playwright's context options (engine, locale, timezone, viewport, touch, colour scheme, reduced motion): `translated` (the browser's page translation), `adBlock` (a content blocker: tracker and analytics scripts blocked, ad-like elements hidden), `removeApis` (an older browser without listed APIs), `storageBlocked`, `latencyMs`. They are implemented once in `src/lib/harness/conditions.ts` and used by the matrix, the deep investigation's experiments and the generated tests.

@@ -15,6 +15,8 @@ export interface DeviceDoc {
   isMobile: boolean;
   hasTouch: boolean;
   notEmulated: string[];
+  /** APIs this browser does not have (older iOS and Android versions), applied to the profile as removeApis. */
+  removeApis?: string[];
 }
 
 const PHONE_GAPS = ["Real device GPU and thermal throttling", "The vendor's browser build and settings", "Real mobile network conditions"];
@@ -24,6 +26,8 @@ export const DEVICES: DeviceDoc[] = [
   { name: "Samsung Galaxy Z Flip (unfolded)", aliases: ["samsung flip", "galaxy z flip", "z flip", "flip z", "zflip", "samsung foldable", "samsung flip z android"], engine: "chromium", viewport: { width: 412, height: 1004 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, notEmulated: [...PHONE_GAPS, "The folded cover screen and hinge posture"] },
   { name: "Samsung Galaxy S24", aliases: ["samsung", "galaxy s24", "galaxy", "samsung phone", "android samsung"], engine: "chromium", viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, notEmulated: PHONE_GAPS },
   { name: "Google Pixel 8", aliases: ["pixel", "pixel 8", "google pixel", "android pixel"], engine: "chromium", viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, notEmulated: PHONE_GAPS },
+  // iOS before 15.4 lacks crypto.randomUUID, structuredClone, Array.prototype.at/findLast and Object.hasOwn (all added in Safari 15.4).
+  { name: "iPhone 8 on iOS 14 (Safari)", aliases: ["iphone 8", "old iphone", "older iphone", "ios 14", "iphone 7", "iphone se", "hasn't updated", "not updated", "old ios"], engine: "webkit", viewport: { width: 375, height: 667 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, notEmulated: [...PHONE_GAPS, "The exact Safari 14 engine (WebKit is current; missing APIs are removed instead)"], removeApis: ["crypto.randomUUID", "structuredClone", "Array.prototype.at", "Array.prototype.findLast", "Object.hasOwn"] },
   { name: "iPhone 15 (Safari)", aliases: ["iphone", "iphone 15", "ios", "apple phone", "safari ios", "iphone safari"], engine: "webkit", viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, notEmulated: [...PHONE_GAPS, "iOS in-app browser differences (Instagram, Facebook)"] },
   { name: "iPad Pro 11 (Safari)", aliases: ["ipad", "ipad pro", "apple tablet", "tablet safari"], engine: "webkit", viewport: { width: 834, height: 1194 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, notEmulated: PHONE_GAPS },
   { name: "MacBook Pro 14 M4 (Safari)", aliases: ["macbook", "macbook pro", "m4", "mac", "macos safari", "apple laptop", "macbook m4 pro"], engine: "webkit", viewport: { width: 1512, height: 982 }, deviceScaleFactor: 2, isMobile: false, hasTouch: false, notEmulated: DESKTOP_GAPS },

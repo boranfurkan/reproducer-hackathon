@@ -12,13 +12,33 @@ export function gemini(): GoogleGenAI {
   return client;
 }
 
-/** Running token total for one investigation, so the loop can stop before it gets expensive. */
+/** The usage block of an interaction (the fields this app reads). */
+export interface Usage {
+  total_tokens?: number;
+  total_input_tokens?: number;
+  total_cached_tokens?: number;
+}
+
+/**
+ * Running token total for one investigation, so the loop can stop before it gets expensive. `used` counts new tokens only: when a
+ * conversation continues (previous_interaction_id), the earlier context is served from the cache and reported as cached tokens, and
+ * counting it again on every turn would make a long investigation over a large context look many times bigger than it is.
+ * `cached` and `peakContext` (the largest single input) are kept for the record.
+ */
 export class TokenBudget {
   used = 0;
+  cached = 0;
+  peakContext = 0;
   constructor(private readonly max: number = LIMITS.maxTokensPerRun) {}
   add(tokens: number | undefined) {
     this.used += tokens ?? 0;
     if (this.used > this.max) throw new Error(`Token budget exceeded (${this.used}/${this.max})`);
+  }
+  addUsage(u: Usage | undefined) {
+    const cached = u?.total_cached_tokens ?? 0;
+    this.cached += cached;
+    this.peakContext = Math.max(this.peakContext, u?.total_input_tokens ?? 0);
+    this.add(Math.max(0, (u?.total_tokens ?? 0) - cached));
   }
 }
 

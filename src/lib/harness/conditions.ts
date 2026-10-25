@@ -24,13 +24,14 @@ export const REMOVABLE_APIS = [
 /**
  * What the browser's own translation does to a page: every text node is replaced by <font><font>text</font></font>, and text that the page
  * adds later is replaced the same way. The page's framework still holds the original text nodes, which are no longer in the document:
- * removing one throws NotFoundError, updating one silently changes nothing.
+ * removing one throws NotFoundError, updating one silently changes nothing. Like the real thing, it leaves text inside translate="no" or .notranslate alone.
  */
 export const TRANSLATE_SCRIPT = `(() => {
   const wrap = (node) => {
     const text = node.nodeValue;
     const parent = node.parentNode;
     if (!text || !text.trim() || !parent || ['SCRIPT', 'STYLE', 'FONT'].includes(parent.nodeName)) return;
+    if (parent.closest && parent.closest('[translate="no"], .notranslate')) return;
     const outer = document.createElement('font');
     outer.style.verticalAlign = 'inherit';
     const inner = document.createElement('font');
@@ -98,3 +99,7 @@ export function conditionHook(p: ConditionFlags): string {
   if (p.latencyMs) lines.push(`await context.route('**/*', async (route) => { if (route.request().resourceType() !== 'document') await new Promise((r) => setTimeout(r, ${Math.round(p.latencyMs)})); await route.continue(); });`);
   return lines.length ? `test.beforeEach(async ({ context }) => { ${lines.join(" ")} });` : "";
 }
+
+/** The sandbox applies a profile's removed APIs from a ready-made script (the list of removable APIs lives here, not there). */
+export const withInitScripts = <T extends { removeApis?: string[] }>(p: T): T & { removeApisScript?: string } =>
+  p.removeApis?.length ? { ...p, removeApisScript: removeApisScript(p.removeApis) } : p;

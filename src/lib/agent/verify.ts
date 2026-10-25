@@ -16,6 +16,8 @@ export interface ProfileResult {
   failure: string | null;
   pageText?: string;
   errors?: string[];
+  /** The value of an experiment's probe expression, measured in the page after the steps. */
+  probe?: string;
   /** The same replay in every installed engine; `ok` above is the result for the profile's own engine. */
   engines?: Record<string, { ok: boolean; failure: string | null }>;
   /** For the matrix table: how the row relates to the reporter, what its environment is, what differs. */

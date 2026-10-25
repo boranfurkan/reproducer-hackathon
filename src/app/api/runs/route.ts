@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireSession();
   if ('error' in auth) return auth.error;
   const body = (await request.json().catch(() => null)) as {
-    owner?: string; name?: string; issueNumber?: number; notes?: string; envVars?: Record<string, string>; media?: unknown[];
+    owner?: string; name?: string; issueNumber?: number; notes?: string; envVars?: Record<string, string>; media?: unknown[]; deep?: boolean;
   } | null;
   // Owner and repository names reach a shell command (the clone URL): only GitHub's own character set is accepted.
   const validName = (v: unknown) => typeof v === 'string' && /^[A-Za-z0-9_.-]{1,100}$/.test(v);
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     runsCol.countDocuments({ userLogin: auth.session.login, status: 'running', createdAt: { $gt: new Date(Date.now() - 40 * 60_000) } }),
     runsCol.countDocuments({ userLogin: auth.session.login, createdAt: { $gt: new Date(Date.now() - 3600_000) } }),
   ]);
-  if (running >= 2) return NextResponse.json({ error: 'Two investigations are already running. Wait for one to finish.' }, { status: 429 });
+  if (running >= 3) return NextResponse.json({ error: 'Three investigations are already running. Wait for one to finish.' }, { status: 429 });
   if (lastHour >= 12) return NextResponse.json({ error: 'That is 12 investigations in the last hour. Try again later.' }, { status: 429 });
   try {
     const runId = await startInvestigation({
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       notes: String(body.notes ?? '').slice(0, 4000),
       envVars,
       media: (body.media ?? []).filter(isTrustedMedia).slice(0, 3),
+      deep: body.deep !== false,
     });
     return NextResponse.json({ runId }, { status: 202 });
   } catch (e) {

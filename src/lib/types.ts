@@ -36,6 +36,8 @@ export interface SandboxFile {
 
 /** One sandbox call, for finding where the time goes. */
 export interface CallTiming {
+  /** The start of the sandbox environment id the call ran in. */
+  env?: string;
   label: string;
   ms: number;
   tokens: number;
@@ -75,6 +77,9 @@ export type RunEventType =
   | "pr_opened"
   | "pr_update"
   | "revision"
+  | "deep_step"
+  | "experiment"
+  | "concluded"
   | "stopped";
 
 export interface RunEvent {

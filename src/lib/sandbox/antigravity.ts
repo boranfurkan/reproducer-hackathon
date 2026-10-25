@@ -14,6 +14,12 @@ import type { CallTiming, ExecResult, Sandbox, SandboxFile } from "../types";
 export class AntigravitySandbox implements Sandbox {
   environmentId: string | null;
   readonly calls: CallTiming[] = [];
+  /**
+   * Called when a command finds the harness or the clone missing (the environment was replaced or wiped between calls): it should boot again.
+   * The command is then retried once.
+   */
+  recover?: () => Promise<void>;
+  private recovering = false;
 
   constructor(
     private readonly budget: TokenBudget,
@@ -31,6 +37,15 @@ export class AntigravitySandbox implements Sandbox {
     const full = files.length ? `${writeFilesCommand(files)} && ${cmd}` : cmd;
     for (let attempt = 1; ; attempt++) {
       const r = await this.runOnce(full, attempt === 1 ? label : `${label}-retry${attempt - 1}`);
+      if (this.recover && !this.recovering && /\/opt\/(harness|target)\S*: No such file or directory/.test(r.stdout + r.stderr)) {
+        this.recovering = true;
+        try {
+          await this.recover();
+        } finally {
+          this.recovering = false;
+        }
+        return this.runOnce(full, `${label}-after-reboot`);
+      }
       const bad = r.stdout.includes("PAYLOAD_BAD");
       if (!bad || attempt >= 3) return r;
     }
@@ -56,9 +71,9 @@ export class AntigravitySandbox implements Sandbox {
         },
       }),
     );
-    this.budget.add(r.usage?.total_tokens);
-    this.calls.push({ label, ms: Date.now() - started, tokens: r.usage?.total_tokens ?? 0 });
+    this.budget.addUsage(r.usage);
     if (r.environment_id) this.environmentId = r.environment_id;
+    this.calls.push({ label, ms: Date.now() - started, tokens: r.usage?.total_tokens ?? 0, env: this.environmentId?.slice(0, 10) });
 
     const results = (r.steps ?? []).filter((s) => s.type === "code_execution_result");
     const raw = results.map((s) => String(s.result)).join("\n");

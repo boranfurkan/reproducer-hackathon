@@ -53,6 +53,10 @@ Helpers in `client.ts`: `initials`, `diffStats`, `splitDiff`, `formatDuration`, 
 - **Approval card**: `rootCause` (one sentence, `explanation` below it), `diff` (the test file is shown separately from `testContent`), `profile.notEmulated`, `similar`, `matrix` for the "N of M" chip, `otherProblems`.
 - **Could not reproduce**: `reason` and `suggestions` (details that would help, written by Argon from the case).
 
+## Deep investigation on the run page
+
+A deep run (`run.mode === 'deep'`) adds a step to the now panel ("Deep investigation") with live counters: the context size, experiments, files read and searches. The timeline shows every tool step as a compact line (Read, Search, Git, Web, and "Argon" for the model's own reasoning lines), each experiment as an entry with a small matrix of its variants (and the probe value per variant when the experiment measured something), and the conclusion with its evidence. Event types: `deep_step` (data `tool`), `experiment` (data `rows`, `probe`), `concluded` (data `reproduced`, `change`, `file`, `explanation`, `evidence`). The ticket form has a "How deep" choice (Deep, the default, or Quick).
+
 ## When it could not reproduce
 
 `run/ReplyDraft.tsx` (side column of a not-reproduced run): "Draft a reply" writes a comment for the issue, the developer edits it, "Post on #N" posts it (hook `replyToReporter(id, 'draft' | 'post', text)`). The recording's key moments (`mediaMoments`) appear inside the "What the recording shows" fold of the first entry.

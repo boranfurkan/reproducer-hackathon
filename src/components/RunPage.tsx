@@ -26,9 +26,26 @@ const STEPS: [string, string, string][] = [
   ['Tests pass', 'green', 'Checking the fix'],
 ];
 
+/** The deep investigation adds a step after the matrix. */
+const stepsFor = (run: RunView): [string, string, string][] =>
+  run.mode === 'deep' ? [...STEPS.slice(0, 3), ['Deep investigation', 'concluded', 'Investigating in depth'], ...STEPS.slice(3)] : STEPS;
+
+/** Live counters of a deep investigation, from its timeline events. */
+function deepCounters(events: TimelineEvent[]) {
+  const steps = events.filter((e) => e.type === 'deep_step').map((e) => (e.data as { tool?: string; contextTokens?: number } | undefined) ?? {});
+  return {
+    experiments: events.filter((e) => e.type === 'experiment').length,
+    reads: steps.filter((d) => d.tool === 'read').length,
+    searches: steps.filter((d) => d.tool === 'search' || d.tool === 'web').length,
+    context: Math.max(0, ...steps.map((d) => d.contextTokens ?? 0)),
+  };
+}
+
 function NowPanel({ run, events }: { run: RunView; events: TimelineEvent[] }) {
   const now = useNow(true);
+  const STEPS = stepsFor(run);
   const seen = new Set(events.map((e) => e.type));
+  const deep = run.mode === 'deep' ? deepCounters(events) : null;
   const current = STEPS.findIndex(([, type]) => !seen.has(type));
   const at = current === -1 ? STEPS.length - 1 : current;
   const elapsed = now - new Date(run.createdAt).getTime();
@@ -60,9 +77,17 @@ function NowPanel({ run, events }: { run: RunView; events: TimelineEvent[] }) {
           );
         })}
       </ol>
+      {deep && seen.has('matrix') && (
+        <div className="grid grid-cols-4 gap-2 border-t border-purple-800 pt-3 font-mono text-xs text-subtle">
+          <span>Context<br /><b className="text-[15px] text-foreground">{deep.context ? `${kilo(deep.context)}` : '–'}</b></span>
+          <span>Experiments<br /><b className="text-[15px] text-foreground">{deep.experiments}</b></span>
+          <span>Files read<br /><b className="text-[15px] text-foreground">{deep.reads}</b></span>
+          <span>Searches<br /><b className="text-[15px] text-foreground">{deep.searches}</b></span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2 border-t border-purple-800 pt-3 font-mono text-xs text-subtle">
         <span>Tokens<br /><b className="text-[15px] text-foreground">{kilo(run.tokensUsed ?? 0) || '0'}</b> {run.tokenCap ? <span>of {kilo(run.tokenCap)} cap</span> : null}</span>
-        <span>Elapsed<br /><b className="text-[15px] text-foreground">{formatClock(elapsed)}</b> <span>usually 4 to 5 min</span></span>
+        <span>Elapsed<br /><b className="text-[15px] text-foreground">{formatClock(elapsed)}</b> <span>{run.mode === 'deep' ? 'deep runs take up to 30 min' : 'usually 4 to 5 min'}</span></span>
       </div>
     </Panel>
   );

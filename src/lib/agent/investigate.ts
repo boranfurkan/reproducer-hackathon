@@ -8,9 +8,10 @@ import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
 import { ablations, baselineProfile, canonicalVariable, describeChange, describeProfile, rowKind, splitByIssue, stressorProfiles } from "./profiles";
-import { conditionHook, removeApisScript } from "../harness/conditions";
+import { conditionHook, withInitScripts } from "../harness/conditions";
+import { deepInvestigate, type DeepResult } from "./deep";
 import { explainRootCause, type Explainer } from "./explain";
-import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
+import { formatDigest, readRepoDigest, readRepoTree, type RepoRef, type RepoTree } from "./repo";
 import { TEST_PATH, between, count, formatMatrix, parseMatrix, verifyFix, type ProfileResult } from "./verify";
 import {
   type FileChange,
@@ -62,6 +63,8 @@ export interface InvestigationResult {
   proposalInteractionId?: string;
   /** Why the platform behaves this way, with sources and a computed proof (Search grounding, code execution, URL context). */
   explainer?: Explainer;
+  /** What the deep investigation did: rounds, experiments, files read, searches, the largest context, minutes, and its evidence. */
+  deep?: DeepResult["stats"] & { evidence: string[]; confirmed: boolean; cachedTokens: number };
   tokensUsed: number;
   environmentId: string | null;
   sandboxCalls: CallTiming[];
@@ -72,9 +75,6 @@ const SYSTEM =
   "You are ReProducer, a senior engineer who reproduces bugs that only happen in the reporter's environment " +
   "(browser engine, locale, timezone, device, storage). Be precise. Never invent files or selectors that are not in the code you are given.";
 
-/** The sandbox applies a profile's removed APIs from a ready-made script (the list of removable APIs lives here, not there). */
-export const withInitScripts = (p: EnvProfile) => (p.removeApis?.length ? { ...p, removeApisScript: removeApisScript(p.removeApis) } : p);
-
 export async function investigate(
   ticket: Ticket,
   emit: Emit,
@@ -83,13 +83,20 @@ export async function investigate(
     githubToken?: string;
     envVars?: Record<string, string>;
     shouldStop?: () => Promise<boolean>;
+    /** Deep investigation: Argon with tools, the whole codebase, its history and the framework source in one context, for up to about half an hour. */
+    deep?: boolean;
     /** Argon's thought summary while a step is being thought through (null when the step is done): the live "thinking" line. */
     onThinking?: (step: string, text: string | null) => void;
   } = {},
 ): Promise<InvestigationResult> {
   const t0 = Date.now();
-  const budget = new TokenBudget();
+  const budget = new TokenBudget(opts.deep ? LIMITS.maxDeepTokens : LIMITS.maxTokensPerRun);
   const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null, opts.envVars ?? {});
+  const bootCmd = `bash ${HARNESS_DIR}/boot.sh https://github.com/${ticket.repo.owner}/${ticket.repo.name}.git`;
+  sandbox.recover = async () => {
+    say("boot", "The sandbox lost its files; booting it again");
+    await sandbox.runWith(harnessFiles(), bootCmd, "re-boot");
+  };
   const events: InvestigationResult["events"] = [];
   // Every Argon call streams its thought summary to the run page when the caller listens (docs: streaming, thinking).
   const ask = <T>(step: string, o: Parameters<typeof askJson<T>>[0]) =>
@@ -137,7 +144,7 @@ export async function investigate(
       "use sensible concrete values for the rest (a Turkish Chrome user on an Android phone has locale tr-TR, timezone Europe/Istanbul, a phone-sized viewport with touch). " +
       'Name the profile "reporter". In notEmulated list what Playwright cannot reproduce about this device (real GPU, OEM browser build, real network...). ' +
       (knownDevices.length
-        ? `Known device profiles that may match the notes (best match first). When one fits, use its engine, viewport, deviceScaleFactor, isMobile, hasTouch and notEmulated exactly; ignore any that do not fit:\n${JSON.stringify(knownDevices)}\n`
+        ? `Known device profiles that may match the notes (best match first). When one fits, use its engine, viewport, deviceScaleFactor, isMobile, hasTouch, notEmulated and removeApis exactly; ignore any that do not fit:\n${JSON.stringify(knownDevices)}\n`
         : "") +
       "suspectedVariables: environment variables that could plausibly matter. " +
       "stressors: up to 5 extra conditions that the report does NOT state but that could plausibly explain why only some users are affected. " +
@@ -151,7 +158,8 @@ export async function investigate(
       "Each is tried on top of the reporter's profile, so only use values that differ from it. Use IANA timezones and BCP 47 locales. " +
       "If the reporter's own device or browser version implies missing APIs (an old iPhone), set removeApis on the reporter profile itself.",
   });
-  const digestP = readRepoDigest(ticket.repo, opts.githubToken).then(formatDigest);
+  const treeP: Promise<RepoTree> = readRepoTree(ticket.repo, opts.githubToken);
+  const digestP = treeP.then((tree) => readRepoDigest(ticket.repo, opts.githubToken, tree)).then(formatDigest);
   const bootP = sandbox
     .runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh https://github.com/${ticket.repo.owner}/${ticket.repo.name}.git`, "boot")
     .then((boot) => {
@@ -195,7 +203,8 @@ export async function investigate(
   const profiles = [reporter, baselineProfile(reporter), ...ablations(reporter).map((a) => a.profile).slice(0, 4), ...stress].slice(0, LIMITS.maxProfilesPerRound);
   const byName = new Map(profiles.map((pr) => [pr.name, pr]));
   // Every profile is replayed in every installed engine (the matrix table has a column for each).
-  const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles: profiles.map(withInitScripts), engines: ["chromium", "webkit"] }) };
+  const makeJob = (list: EnvProfile[]): SandboxFile => ({ path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles: list.map(withInitScripts), engines: ["chromium", "webkit"] }) });
+  let job = makeJob(profiles);
   const enrich = (rows: ProfileResult[]): ProfileResult[] =>
     rows.map((r) => {
       const pr = byName.get(r.name);
@@ -207,13 +216,57 @@ export async function investigate(
   out.matrix = m1;
   say("matrix", `Matrix round 1 (${m1.length} profiles)\n${formatMatrix(m1)}`, m1);
 
-  // The profile that reproduces the bug: the reporter's own, or the reporter plus one extra condition.
-  const rep = m1.find((r) => r.name === "reporter");
-  const triggered = m1.filter((r) => r.name.startsWith("add-") && !r.ok);
-  const focusRow = rep && !rep.ok ? rep : triggered[0];
+  // 2b. The deep investigation: Argon with tools and experiments, over the whole codebase, its history and the framework source (deep.ts).
+  let deep: DeepResult | null = null;
+  let m = m1;
+  if (opts.deep) {
+    if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
+    deep = await deepInvestigate({
+      issueText,
+      notes: ticket.notes,
+      understanding,
+      reporter,
+      plan,
+      round1: m1,
+      known: byName,
+      code,
+      tree: await treeP,
+      githubToken: opts.githubToken,
+      sandbox,
+      budget,
+      say,
+      think: (step, text) => opts.onThinking?.(step, text),
+      shouldStop: opts.shouldStop,
+    });
+    out.deep = { ...deep.stats, evidence: deep.evidence, confirmed: deep.confirmed, cachedTokens: budget.cached };
+    if (deep.stoppedReason === "Stopped by you.") return stopped("Stopped by you. Nothing was changed.");
+    // A condition found by experiment joins the matrix (round 2), so the fix is checked against it like every other environment.
+    if (deep.reproduced && deep.focus && !byName.has(deep.focus.name)) {
+      profiles.push(deep.focus);
+      byName.set(deep.focus.name, deep.focus);
+      job = makeJob(profiles);
+      const r2 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix-2");
+      m = enrich(parseMatrix(between(r2.stdout, "@@RESULT@@", "@@END@@"), r2));
+      out.matrix = m;
+      say("matrix", `Matrix round 2 with the condition the investigation found (${m.length} profiles)\n${formatMatrix(m)}`, m);
+    }
+  }
+
+  // The profile that reproduces the bug: the one the investigation concluded on, the reporter's own, or the reporter plus one extra condition.
+  const deepRow = deep?.reproduced && deep.focus ? m.find((r) => r.name === deep!.focus!.name && !r.ok) : undefined;
+  const rep = m.find((r) => r.name === "reporter");
+  const triggered = m.filter((r) => r.name.startsWith("add-") && !r.ok);
+  const focusRow = deepRow ?? (rep && !rep.ok ? rep : triggered[0]);
   if (!focusRow) {
     out.status = "not_reproduced";
-    out.reason = "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.";
+    out.reason = deep
+      ? `The deep investigation (${deep.stats.experiments} experiments, ${deep.stats.filesRead} files read) and the matrix could not reproduce the bug.${deep.hypothesis?.rootCause ? ` Best explanation so far: ${deep.hypothesis.rootCause}` : ""}`
+      : "The replay passes under the reporter's profile and under every extra condition tried, so the bug did not reproduce.";
+    if (deep?.missing.length) {
+      out.suggestions = deep.missing;
+      say("stopped", out.reason);
+      return finish();
+    }
     // What would help next time: specific details the developer could add, written from this case.
     try {
       const help = await ask<{ missing: string[] }>("Working out what would help", {
@@ -237,7 +290,7 @@ export async function investigate(
   const focus = byName.get(focusRow.name) ?? reporter;
   // A repository can hold several bugs. A profile that failed in round 1 for a different reason than the focus (another failed step or another
   // console error) belongs to a different problem: it is reported, not required to pass, and the model is told not to fix it.
-  const { required, unrelated } = splitByIssue(m1, focusRow.name);
+  const { required, unrelated } = splitByIssue(m, focusRow.name);
   out.replay = { plan, profiles, engines: ["chromium", "webkit"], required: [...required] };
   out.otherProblems = unrelated.map((r) => ({ profile: r.name, problem: r.errors?.[0] || r.failure || "fails" }));
   if (unrelated.length) {
@@ -249,7 +302,7 @@ export async function investigate(
   }
   // What isolates the bug, in canonical names: the variables whose reset makes the reporter pass, or the one condition that was added.
   const addedVariable = focusRow.name === "reporter" ? null : canonicalVariable(reporter, focus);
-  const decisive = addedVariable ? [addedVariable] : m1.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""));
+  const decisive = addedVariable ? [addedVariable] : m.filter((r) => r.name.startsWith("reset-") && r.ok).map((r) => r.name.replace("reset-", ""));
   out.decisiveVariables = decisive;
   out.focusProfile = focus;
   out.isolatedRows = addedVariable ? [focusRow.name] : decisive.map((v) => `reset-${v}`);
@@ -294,9 +347,10 @@ export async function investigate(
     if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
     // The first attempt sends everything. A retry continues the same interaction (server-side conversation state), so the model keeps its own
     // reasoning and the code it read, and only the verification feedback is new; if no interaction id is known it falls back to the full prompt.
-    const fullPrompt =
-        `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nReplay matrix (same steps, different environments):\n${formatMatrix(m1)}\n\n` +
-        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n` +
+    const situation =
+        `Replay matrix (same steps, different environments):\n${formatMatrix(m)}\n\n` +
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n`;
+    const tasks =
         "Do three things.\n" +
         "1. Find the root cause. rootCause: ONE sentence of at most 160 characters, without the file name (file goes in the file field). explanation: two to four sentences on the mechanism and exactly why only this environment is affected, without repeating the rootCause sentence. prTitle: a short imperative pull request title of at most 65 characters, plain text, no backticks and no file paths (for example \"Use locale-independent upper-casing for category keys\").\n" +
         `2. Write ONE Playwright test file (testContent, saved as ${TEST_PATH}; ES module importing from "@playwright/test"; baseURL is already configured and the repo's playwright config starts the site). ` +
@@ -311,18 +365,33 @@ export async function investigate(
           : "") +
         "Use stable selectors from the source. Check each URL against the server and the source (some apps use hash routes, some use paths). The test must assert that the page still works after the user's actions, so a white page or a frozen page fails it.\n" +
         "3. Fix the bug with the smallest change that keeps behaviour for other users. Return only the files you change (path relative to the repo root, full new content). Do not edit the test.";
+    const fullPrompt = `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\n` + situation + tasks;
+    // After a deep investigation the proposal continues its interaction: the code, the framework source and every experiment are already in context.
+    const deepPrompt =
+      `The investigation is over. You concluded: ${deep?.hypothesis?.rootCause ?? ""} (${deep?.hypothesis?.file ?? ""}). ${deep?.hypothesis?.explanation ?? ""}\n\n` +
+      situation +
+      "Now write the fix. " +
+      tasks;
     const retry = attempt > 1 && lastInteractionId;
-    const p = await ask<Proposal>("Finding the root cause and the fix", {
-      budget,
-      system: SYSTEM,
-      level: "high",
-      schema: proposalSchema,
-      prompt: retry
-        ? `Your previous attempt failed verification:\n${feedback}\nCorrect it. Answer with the same JSON as before: the root cause, the test and the fix in full.`
-        : fullPrompt + (feedback ? `\n\nYour previous attempt failed verification:\n${feedback}\nCorrect it.` : ""),
-      ...(retry ? { previousInteractionId: lastInteractionId } : {}),
-      onInteractionId: (id) => (lastInteractionId = id),
-    });
+    const continueDeep = !retry && attempt === 1 && deep?.interactionId;
+    const propose = (fresh: boolean) =>
+      ask<Proposal>("Finding the root cause and the fix", {
+        budget,
+        system: SYSTEM,
+        level: "high",
+        schema: proposalSchema,
+        prompt: retry
+          ? `Your previous attempt failed verification:\n${feedback}\nCorrect it. Answer with the same JSON as before: the root cause, the test and the fix in full.`
+          : continueDeep && !fresh
+            ? deepPrompt
+            : fullPrompt +
+              (deep?.hypothesis?.rootCause ? `\n\nAn investigation concluded: ${deep.hypothesis.rootCause} (${deep.hypothesis.file}). ${deep.hypothesis.explanation}\nEvidence: ${deep.evidence.join("; ")}` : "") +
+              (feedback ? `\n\nYour previous attempt failed verification:\n${feedback}\nCorrect it.` : ""),
+        ...(retry ? { previousInteractionId: lastInteractionId } : continueDeep && !fresh ? { previousInteractionId: deep!.interactionId } : {}),
+        onInteractionId: (id) => (lastInteractionId = id),
+      });
+    // If continuing the investigation's chain fails for any reason, the proposal starts fresh with the conclusion in the prompt.
+    const p = continueDeep ? await propose(false).catch(() => propose(true)) : await propose(false);
     if (attempt === 1) {
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
       out.prTitle = p.prTitle;

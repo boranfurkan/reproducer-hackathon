@@ -236,6 +236,8 @@ export interface StartRunInput {
   /** Raw text of the environment variables box. */
   envText?: string;
   media?: MediaItem[];
+  /** Deep investigation (default) or the quick matrix-and-fix. */
+  deep?: boolean;
 }
 
 /** Starts an investigation and returns the run id (the run continues on the server). */
@@ -249,6 +251,7 @@ export async function startRun(input: StartRunInput): Promise<string> {
       notes: input.notes,
       envVars: parseEnvText(input.envText ?? ''),
       media: (input.media ?? []).map((m) => ({ uri: m.uri, mimeType: m.mimeType, kind: m.kind, name: m.name })),
+      deep: input.deep ?? true,
     }),
   });
   return runId;

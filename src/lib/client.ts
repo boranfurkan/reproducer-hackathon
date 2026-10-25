@@ -108,6 +108,8 @@ export interface RunView {
   prReviewState?: string | null;
   prMergedAt?: string;
   revisions?: number;
+  mode?: 'deep' | 'quick';
+  deep?: { rounds: number; experiments: number; filesRead: number; searches: number; webSearches: number; contextTokens: number; minutes: number; evidence: string[]; confirmed: boolean; cachedTokens: number };
   explainer?: { text: string; sources: { title: string; url: string }[]; proof?: { code: string; output: string } };
   replyDraft?: { text: string; postedAt?: string; url?: string };
   revision?: {

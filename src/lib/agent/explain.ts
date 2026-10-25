@@ -31,7 +31,7 @@ export async function explainRootCause(input: { rootCause: string; file: string;
           "If the behaviour can be computed, use code execution to demonstrate it in a few lines (Python is fine) and print the result. Do not repeat the root cause sentence.",
       }),
     );
-    budget.add(r.usage?.total_tokens);
+    budget.addUsage(r.usage);
     const steps = (r.steps ?? []) as Step[];
     const blocks = steps.filter((s) => s.type === "model_output").flatMap((s) => s.content ?? []).filter((c) => c.type === "text");
     const text = blocks.map((b) => b.text ?? "").join(" ").replace(/\s+/g, " ").trim();
