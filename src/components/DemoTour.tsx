@@ -7,7 +7,8 @@ import { IconArrowLeft, IconArrowRight, IconRefresh, IconX } from './icons';
 // A guided tour for recording the demo: one sequence through the whole story, page after page. Each step highlights one element with a short
 // caption; the last step of a page points at what to open next, and → opens it (or click it yourself). On only when the app runs with
 // NEXT_PUBLIC_DEMO_TOUR=1 (`npm run dev:demo`); `?tour=0` or `?tour=1` in the URL switches it for this browser. Keys: → or Enter next,
-// ← back, Esc hides the card, T shows it, R starts again from the dashboard. The position is kept in this browser, so a reload continues.
+// ← back, Esc hides the card, T shows it, R starts again from the dashboard. The position is kept in this browser, so a reload continues;
+// restarting the server starts the tour again from step 1.
 
 type Page = 'home' | 'repo' | 'ticket' | 'run' | 'insights';
 
@@ -76,7 +77,8 @@ const STEPS: Step[] = [
 ];
 
 const ENABLED = process.env.NEXT_PUBLIC_DEMO_TOUR === '1';
-const KEY = 'rp-tour-step';
+// The saved position belongs to one start of the server: a restart begins the tour at step 1.
+const KEY = `rp-tour-step-${process.env.NEXT_PUBLIC_TOUR_RUN ?? ''}`;
 
 function pageOf(path: string): Page | null {
   if (path === '/') return 'home';

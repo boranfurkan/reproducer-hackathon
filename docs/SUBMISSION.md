@@ -58,7 +58,7 @@ ReProducer does a developer's real job end to end: take an issue that only some 
 
 ## 3. Submission details
 
-**What I built.** ReProducer, a web app and agent that turns "I can't reproduce this bug" into a verified fix waiting for approval. Built solo during the hackathon with Next.js, Gemini (Argon, the Antigravity managed agent, Flash) and MongoDB Atlas, plus a demo shop with five apps in five stacks (React, Vue, plain JavaScript, Preact, Alpine.js) and five real bugs of this kind.
+**What I built.** The idea came from a friend, Oguz, a freelance developer whose most-repeated sentence to clients is "I can't reproduce this bug". The customer swears it's broken, it works on every machine Oguz tries, and hours go into making the bug happen at all before any fixing can start. I built ReProducer around that feedback: a web app and AI agent that takes the client's bug report and turns "I can't reproduce it" into a verified fix waiting for approval. Built solo during the hackathon with Next.js, Gemini (Argon, the Antigravity managed agent, Flash) and MongoDB Atlas, plus a demo shop with five apps in five stacks (React, Vue, plain JavaScript, Preact, Alpine.js) and five real bugs of this kind.
 
 **The problem.** The hardest bug tickets are the ones that only happen to some customers. The code looks correct, it works on every developer's machine, and a coding assistant that reads the code finds nothing, because the cause is something only those customers have: page translation, a content blocker, an accessibility setting, a timezone, an old browser. Developers lose hours or days making the bug happen at all, before they can fix it.
 

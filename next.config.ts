@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   // Recording the demo (`npm run dev:demo`): no development badge on screen.
-  ...(process.env.NEXT_PUBLIC_DEMO_TOUR === '1' ? { devIndicators: false as const } : {}),
+  // The tour also starts again from its first step every time the server starts (the id keys its saved position).
+  ...(process.env.NEXT_PUBLIC_DEMO_TOUR === '1' ? { devIndicators: false as const, env: { NEXT_PUBLIC_TOUR_RUN: String(Date.now()) } } : {}),
   partialPrefetching: true,
   turbopack: {
     rules: {
