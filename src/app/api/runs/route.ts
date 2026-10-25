@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   // Guard against runaway usage (the hackathon account is monitored for abuse): few at once, a sensible number per hour.
   const runsCol = await collection<RunDoc>('runs');
   const [running, lastHour] = await Promise.all([
-    runsCol.countDocuments({ userLogin: auth.session.login, status: 'running', createdAt: { $gt: new Date(Date.now() - 40 * 60_000) } }),
+    runsCol.countDocuments({ userLogin: auth.session.login, status: 'running', createdAt: { $gt: new Date(Date.now() - 60 * 60_000) } }),
     runsCol.countDocuments({ userLogin: auth.session.login, createdAt: { $gt: new Date(Date.now() - 3600_000) } }),
   ]);
   if (running >= 3) return NextResponse.json({ error: 'Three investigations are already running. Wait for one to finish.' }, { status: 429 });

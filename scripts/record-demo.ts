@@ -1,6 +1,6 @@
 // Drives the real web app through one investigation with Playwright and records it as video. Stops at the approval card (it never clicks Approve).
 //
-//   GITHUB_TOKEN=... npm run demo:record -- 4 --notes "Chrome on a Windows laptop, language Turkish" [--media recording.webm] [--base http://localhost:3000]
+//   GITHUB_TOKEN=... npm run demo:record -- 8 --notes "Customer in Munich, Chrome on Windows 11, German is her language." [--media recording.webm] [--base http://localhost:3000]
 //
 // It signs in with a session cookie built from AUTH_SECRET and the token in GITHUB_TOKEN (the GitHub login screen itself is not recorded), so the
 // app must be running with the same AUTH_SECRET. Output: .demo/<timestamp>/raw.webm and, if the bundled ffmpeg is found, fast.webm (sped up).
@@ -18,7 +18,7 @@ const flag = (name: string) => {
 };
 
 async function main() {
-  const issue = Number(args.find((a) => /^\d+$/.test(a)) ?? 1);
+  const issue = Number(args.find((a) => /^\d+$/.test(a)) ?? 8);
   const notes = flag("--notes") ?? "";
   const media = flag("--media");
   const base = flag("--base") ?? "http://localhost:3000";
@@ -53,9 +53,9 @@ async function main() {
   await page.getByRole("button", { name: "Investigate" }).click();
   await page.waitForURL(/\/runs\//, { timeout: 30_000 });
 
-  // Wait for the run to end: the status badge changes from "Running".
+  // Wait for the run to end: the status badge changes from "Running". A deep investigation can take half an hour.
   const started = Date.now();
-  while (Date.now() - started < 20 * 60_000) {
+  while (Date.now() - started < 45 * 60_000) {
     await pause(5000);
     if (!(await page.getByText("Running", { exact: true }).count())) break;
   }

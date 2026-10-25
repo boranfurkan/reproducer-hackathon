@@ -1,5 +1,5 @@
 // Run one investigation from the terminal:
-//   npm run investigate -- [issue number] [--notes "..."] [--video <recording or screenshot>] [--env <environment id>] [--no-db]
+//   npm run investigate -- [issue number] [--notes "..."] [--deep] [--video <recording or screenshot>] [--env <environment id>] [--no-db]
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { investigate } from "../src/lib/agent/investigate";
@@ -12,7 +12,7 @@ const flag = (name: string) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const issueNumber = Number(args.find((a) => /^\d+$/.test(a)) ?? 1);
+const issueNumber = Number(args.find((a) => /^\d+$/.test(a)) ?? 8);
 const repo = { owner: "boranfurkan", name: "reproducer-hackathon-demo" };
 
 async function main() {
@@ -46,7 +46,7 @@ async function main() {
         console.log(`${stamp()} ${type.toUpperCase().padEnd(18)} ${summary}`);
         record?.emit(type, summary, data);
       },
-      { environmentId: flag("--env") ?? null, githubToken },
+      { environmentId: flag("--env") ?? null, githubToken, deep: args.includes("--deep") },
     );
   } catch (e) {
     await record?.fail(e);

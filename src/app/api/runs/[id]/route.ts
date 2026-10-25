@@ -18,7 +18,8 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/runs/[id]'>) {
   // Keep the pull request up to date (reviews, merged, closed) while somebody is looking at the run.
   if (run.prNumber && (await syncPr(run, auth.session.token))) Object.assign(run, await runs.findOne({ _id: run._id }));
   // A run that is still "running" long after it started lost its server process (a restart): say so instead of spinning forever.
-  if (run.status === 'running' && Date.now() - run.createdAt.getTime() > 40 * 60_000) {
+  // A deep investigation alone may take 32 minutes, so the limit leaves room for the matrix, the fix and its verification.
+  if (run.status === 'running' && Date.now() - run.createdAt.getTime() > 60 * 60_000) {
     run.status = 'failed';
     run.reason = 'The investigation was interrupted (the server restarted). Start it again.';
     await runs.updateOne({ _id: run._id, status: 'running' }, { $set: { status: 'failed', reason: run.reason, finishedAt: new Date() } });
