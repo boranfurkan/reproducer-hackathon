@@ -205,14 +205,19 @@ export async function investigate(
   // Every profile is replayed in every installed engine (the matrix table has a column for each).
   const makeJob = (list: EnvProfile[]): SandboxFile => ({ path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles: list.map(withInitScripts), engines: ["chromium", "webkit"] }) });
   let job = makeJob(profiles);
+  // A matrix call whose output lost its result (the sandbox agent's output can be cut, or it re-ran a command) is repeated once.
+  const runMatrix = async (label: string) => {
+    let r = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, label);
+    if (!between(r.stdout, "@@RESULT@@", "@@END@@")) r = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `${label}-again`);
+    return enrich(parseMatrix(between(r.stdout, "@@RESULT@@", "@@END@@"), r));
+  };
   const enrich = (rows: ProfileResult[]): ProfileResult[] =>
     rows.map((r) => {
       const pr = byName.get(r.name);
       return { ...r, kind: rowKind(r.name), env: pr ? describeProfile(pr) : "", change: pr ? describeChange(reporter, pr) : "" };
     });
   if (await opts.shouldStop?.()) return stopped("Stopped by you before the replay started.");
-  const r1 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix");
-  const m1 = enrich(parseMatrix(between(r1.stdout, "@@RESULT@@", "@@END@@"), r1));
+  const m1 = await runMatrix("matrix");
   out.matrix = m1;
   say("matrix", `Matrix round 1 (${m1.length} profiles)\n${formatMatrix(m1)}`, m1);
 
@@ -254,8 +259,7 @@ export async function investigate(
         byName.set(deep.focus.name, deep.focus);
       }
       job = makeJob(profiles);
-      const r2 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix-2");
-      m = enrich(parseMatrix(between(r2.stdout, "@@RESULT@@", "@@END@@"), r2));
+      m = await runMatrix("matrix-2");
       out.matrix = m;
       say("matrix", `Matrix round 2 with what the investigation found (${m.length} profiles)\n${formatMatrix(m)}`, m);
     }

@@ -71,7 +71,7 @@ async function runProfile(browser, p) {
     for (const s of job.plan.steps) {
       try { await runStep(page, s); } catch (e) { failure = s.action + " " + (s.selector || s.url || "") + ": " + String(e.message).split("\n")[0].slice(0, 140); break; }
     }
-    const text = (await page.evaluate(() => document.body.innerText).catch(() => "")).replace(/\s+/g, " ").slice(0, 160);
+    const text = (await page.evaluate(() => document.body.innerText).catch(() => "")).replace(/\s+/g, " ").slice(0, 120);
     // An experiment can measure something in the page after the steps (whether they failed or not): a JavaScript expression, may be async.
     let probe;
     if (job.probe) {
@@ -80,7 +80,7 @@ async function runProfile(browser, p) {
         .catch((e) => "probe error: " + String(e.message).split("\n")[0]);
       probe = String(probe).slice(0, 700);
     }
-    return { name: p.name, ok: !failure, failure, pageText: text, errors: errors.slice(0, 3), ...(job.probe ? { probe } : {}) };
+    return { name: p.name, ok: !failure, failure, pageText: text, errors: errors.slice(0, 2), ...(job.probe ? { probe } : {}) };
   } catch (e) {
     return { name: p.name, ok: false, failure: "harness: " + String(e.message).split("\n")[0].slice(0, 140) };
   } finally { if (ctx) await ctx.close().catch(() => {}); }

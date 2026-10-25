@@ -403,7 +403,8 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
       path: `${HARNESS_DIR}/job.json`,
       content: JSON.stringify({ baseUrl: "http://localhost:3100", plan: { steps }, profiles: built.map(withInitScripts), engines, ...(probe ? { probe } : {}) }),
     };
-    const r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}`);
+    let r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}`);
+    if (!between(r.stdout, "@@RESULT@@", "@@END@@")) r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}-again`);
     const rows = parseMatrix(between(r.stdout, "@@RESULT@@", "@@END@@"), r).map((row) => {
       const p = built.find((b) => b.name === row.name)!;
       return { ...row, kind: "experiment", env: describeProfile(p), change: describeChange(d.reporter, p) };

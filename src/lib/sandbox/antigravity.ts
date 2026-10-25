@@ -81,7 +81,8 @@ export class AntigravitySandbox implements Sandbox {
 
     const results = (r.steps ?? []).filter((s) => s.type === "code_execution_result");
     const raw = results.map((s) => String(s.result)).join("\n");
-    const exit = raw.match(/\[EXIT:(\d+)\]/);
+    // The agent sometimes runs a failed command again on its own: the outputs are joined, and the last exit code is the one that counts.
+    const exit = [...raw.matchAll(/\[EXIT:(\d+)\]/g)].at(-1);
     const stdout = raw.split("[STDERR]")[0].replace("[STDOUT]", "").replace(/\[EXIT:\d+\]/, "").trim();
     const stderr = (raw.split("[STDERR]")[1] ?? "").trim();
     return { code: exit ? Number(exit[1]) : -1, stdout, stderr };
