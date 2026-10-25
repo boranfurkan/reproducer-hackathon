@@ -1,7 +1,7 @@
 import Mascot from '../mascot/Mascot';
 import type { Pose } from '../mascot/pixels';
 import MatrixTable, { matrixCounts } from './MatrixTable';
-import { Chip, PixelDots, UserTile } from '../ui';
+import { Chip, InlineCode, PixelDots, UserTile } from '../ui';
 import { initials, type MatrixRow, type RunView, type SessionUser, type TimelineEvent } from '@/lib/client';
 
 /** One entry of the timeline, as a chat-like message from the agent (or from you). */
@@ -199,7 +199,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
                 <span className={`font-mono text-[13px] font-semibold ${e.who === 'you' ? 'text-foreground' : tone!.label}`}>{e.label}</span>
                 <span className="flex-none font-mono text-xs text-subtle">{e.t}</span>
               </div>
-              <p className="text-[15px] text-[#e4dcfb] text-pretty [overflow-wrap:anywhere]">{e.summary}</p>
+              <p className="text-[15px] text-[#e4dcfb] text-pretty [overflow-wrap:anywhere]"><InlineCode text={e.summary} /></p>
               {e.attach && e.attach.length > 0 && <span className="flex flex-wrap gap-1.5">{e.attach.map((a) => <span key={a} className="rounded-sm bg-purple-850 px-2 py-[3px] font-mono text-xs text-muted">{a}</span>)}</span>}
               {e.observ && (
                 <details open className="text-sm">
@@ -226,7 +226,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
               {e.chips && e.chips.length > 0 && <span className="flex flex-wrap gap-1.5">{e.chips.map((c) => <Chip key={c}>{c}</Chip>)}</span>}
               {e.list && e.list.length > 0 && (
                 <ul className="m-0 flex list-none flex-col gap-1 p-0">
-                  {e.list.map((h, i) => <li key={`${i}-${h.title}`} className="text-sm text-muted [overflow-wrap:anywhere]"><span className="text-foreground">{h.title}</span>{h.sub ? <> <span className="font-mono text-xs text-subtle">({h.sub})</span></> : null}</li>)}
+                  {e.list.map((h, i) => <li key={`${i}-${h.title}`} className="text-sm text-muted [overflow-wrap:anywhere]"><span className="text-foreground"><InlineCode text={h.title} /></span>{h.sub ? <> <span className="font-mono text-xs text-subtle">({h.sub})</span></> : null}</li>)}
                 </ul>
               )}
               {e.matrix && (
