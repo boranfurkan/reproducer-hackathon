@@ -31,7 +31,7 @@ function Issues({ owner, name }: { owner: string; name: string }) {
           {issues.map((i) => (
             <li key={i.number}>
               {/* A ticket: a stub with the number, a perforated edge with punched notches, the report on the right. */}
-              <Link href={`/repos/${owner}/${name}/issues/${i.number}`} className="group flex rounded-lg border border-purple-800 bg-purple-900 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-[#1a0f40]">
+              <Link href={`/repos/${owner}/${name}/issues/${i.number}`} data-tour={`ticket-${i.number}`} className="group flex rounded-lg border border-purple-800 bg-purple-900 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-[#1a0f40]">
                 <span className="flex w-[76px] flex-none flex-col items-center justify-center gap-1 rounded-l-lg bg-purple-850 px-2 py-4 sm:w-[96px]">
                   <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-subtle uppercase">Ticket</span>
                   <span className="font-mono text-xl font-semibold text-hot sm:text-2xl">#{i.number}</span>

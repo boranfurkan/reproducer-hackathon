@@ -122,7 +122,7 @@ function Dashboard() {
         <ul data-tour="repos" className="flex flex-col gap-2">
           {shown.map((r) => (
             <li key={r.fullName}>
-              <Link href={`/repos/${r.owner}/${r.name}`} onMouseEnter={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} onFocus={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
+              <Link href={`/repos/${r.owner}/${r.name}`} data-tour={`repo-${r.name}`} onMouseEnter={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} onFocus={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <span className="font-mono text-sm font-semibold [overflow-wrap:anywhere]">{r.owner}/<span className="text-purple-200">{r.name}</span></span>
                   {r.description && <span className="text-sm text-muted">{r.description}</span>}
@@ -162,7 +162,7 @@ function Dashboard() {
             </div>
           )}
           {runs?.map((r) => (
-            <Link key={r._id} href={`/runs/${r._id}`} className="flex flex-col gap-1.5 rounded-md border border-purple-800 bg-purple-900 px-3.5 py-3 text-foreground no-underline transition-colors hover:border-purple-500">
+            <Link key={r._id} href={`/runs/${r._id}`} data-tour={`run-${r.issueNumber}-${r.status}`} className="flex flex-col gap-1.5 rounded-md border border-purple-800 bg-purple-900 px-3.5 py-3 text-foreground no-underline transition-colors hover:border-purple-500">
               <span className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate font-mono text-[13px] font-semibold">{r.repo.split('/')[1]}#{r.issueNumber}</span>
                 <RunStatusChip run={r} inList />

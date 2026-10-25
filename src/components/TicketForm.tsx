@@ -94,7 +94,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
       </div>
 
       <div className="flex flex-wrap items-start gap-6">
-        <Panel className="flex min-w-0 flex-[1_1_360px] flex-col gap-2.5 px-[22px] py-5">
+        <Panel tour="report" className="flex min-w-0 flex-[1_1_360px] flex-col gap-2.5 px-[22px] py-5">
           <Eyebrow>The report</Eyebrow>
           {issue ? (
             <>
@@ -122,6 +122,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
                     return (
                       <button
                         key={d.issue}
+                        data-tour={`note-${d.issue}`}
                         type="button"
                         onClick={() => setNotes(d.notes)}
                         aria-pressed={chosen}

@@ -33,8 +33,8 @@ export function Eyebrow({ children, className = '' }: { children: ReactNode; cla
   return <h2 className={`font-mono text-xs font-medium tracking-[0.08em] text-subtle uppercase ${className}`}>{children}</h2>;
 }
 
-export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-lg border border-purple-800 bg-purple-900 ${className}`}>{children}</section>;
+export function Panel({ children, className = '', tour }: { children: ReactNode; className?: string; tour?: string }) {
+  return <section data-tour={tour} className={`rounded-lg border border-purple-800 bg-purple-900 ${className}`}>{children}</section>;
 }
 
 export function Chip({ children, className = '' }: { children: ReactNode; className?: string }) {

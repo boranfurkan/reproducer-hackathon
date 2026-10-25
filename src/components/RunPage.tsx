@@ -168,7 +168,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
       </div>
 
       <div className="flex flex-wrap items-start gap-6">
-        <div className="min-w-0 flex-[1.1_1_440px]">
+        <div data-tour="timeline" className="min-w-0 flex-[1.1_1_440px]">
           <Timeline run={run} events={events} user={user} running={running} />
         </div>
         {/* When a fix is waiting for approval it comes first on a narrow screen: the decision is the point of the page. */}

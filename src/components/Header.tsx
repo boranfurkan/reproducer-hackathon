@@ -23,7 +23,7 @@ export default function Header({ user }: { user: SessionUser | null }) {
         {user ? (
           <div className="flex items-center gap-3 font-mono text-[13px] font-medium text-muted">
             {/* On a phone the labels give way to the icons, so the bar fits. */}
-            <Link href="/insights" aria-label="Insights" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-muted no-underline transition-colors hover:bg-purple-850 hover:text-foreground"><IconChart size={14} /><span className="hidden sm:inline">Insights</span></Link>
+            <Link href="/insights" data-tour="nav-insights" aria-label="Insights" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-muted no-underline transition-colors hover:bg-purple-850 hover:text-foreground"><IconChart size={14} /><span className="hidden sm:inline">Insights</span></Link>
             <UserTile letters={initials(user.name, user.login)} />
             <span className="hidden max-w-[30vw] truncate sm:inline">{user.login}</span>
             <button onClick={logout} aria-label="Log out" className={buttonClass('secondary', 'sm')}><IconLogOut size={14} /><span className="hidden sm:inline">Log out</span></button>
