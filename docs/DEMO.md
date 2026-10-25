@@ -21,14 +21,17 @@ Start the app with `npm run dev`, log in with GitHub, open http://localhost:3000
 |---|---|
 | 0:00 | The problem in one sentence: bugs that only some customers have, invisible in the code. |
 | 0:15 | The issue list of the demo repo: triage badges mark the issues as environment-specific. |
-| 0:25 | Open #8 ("Shop turns completely white..."). Type the notes: *Customer in Munich, Chrome on Windows 11, German is her language.* Keep "Deep investigation" selected, click Investigate. Show 20 to 30 seconds live: the thinking line, the context counter (about 318k tokens: React's source is in Argon's context), the first matrix. |
+| 0:25 | Open #8 ("Shop turns completely white..."). Type the notes: *Customer in Munich, Chrome on Windows 11, German is her language.* Keep "Deep investigation" selected, click Investigate. Show 20 to 30 seconds live: the thinking line, the first matrix, the context counter once the deep investigation opens (over 300k tokens: React's source is in Argon's context). |
 | 1:00 | Switch to the finished #8 run from the dashboard. Scroll the timeline: the investigation opens with the app, its history and the React source; Argon reads the storefront commit; the experiment with the page translated reproduces it; the conclusion and its evidence; the test fails before the fix and passes after; the matrix after the fix; "Why this happens" with sources. |
 | 1:45 | Click **Approve and open pull request** on #8. The pull request opens on GitHub (this is real: it creates a branch and a PR on the demo repo). |
 | 2:00 | Flick through the other four finished runs, showing only each conclusion card: #9 (reduced motion; it found the accessibility commit), #10 (content blocker), #11 (the night the UK clocks go back), #12 (old iPhone without newer APIs). |
 | 2:25 | MongoDB: Insights (aggregations), one "Ask the memory" question (function calling over Atlas), the shared-bug alert from Stream Processing. |
 | 2:45 | Close: Argon 4 with a million tokens of context, experimenting in real browsers, and a human approving before anything is pushed. |
 
-A deep run takes 5 to 30 minutes depending on the bug, so record the live start and cut to the finished run.
+A deep run took 13 to 26 minutes on the five demo bugs, so record the live start and cut to the finished run. Notes:
+- The live run appears on the dashboard next to the finished one for the same issue. Once you have what you need on screen, press **Stop** on it (it ends after the step it is in and saves tokens), or let it finish.
+- Run one live investigation at a time: with three at once the sandbox reset its environments and each repair cost one to two minutes.
+- The shared-bug alerts count tickets per environment. All tickets so far came from your account, so each alert shows one reporter. `npm run demo:cluster` adds three tickets from three demo reporters if you want an alert with several people on it (`-- --clean` removes them).
 
 ## If something goes wrong while recording
 

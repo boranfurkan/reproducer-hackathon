@@ -1,6 +1,8 @@
 # Deploying
 
-ReProducer is a long-running Node server, not a set of serverless functions. An investigation starts in the background of the request that created it and runs for several minutes, the sandbox keep-alive is a timer, and the run page polls. Host it where the process stays alive and keeps its CPU between requests.
+ReProducer is a long-running Node server, not a set of serverless functions. An investigation starts in the background of the request that created it and runs for several minutes (a deep one up to about half an hour), the sandbox keep-alive is a timer, and the run page holds a server-sent event stream open (a MongoDB change stream; it falls back to polling if the stream drops). Host it where the process stays alive, keeps its CPU between requests and allows long-lived responses.
+
+For the hackathon it runs locally (`npm run dev`) and the demo is recorded there; nothing below has been tried on a real host.
 
 ## What is ready
 

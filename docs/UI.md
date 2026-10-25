@@ -37,18 +37,21 @@ Shared: `Shell` (header, footer, the "log in first" screen), `Header`, `ui.tsx` 
 | Name | Returns or does |
 |---|---|
 | `useSession()` | `SessionUser`, `null` (logged out), `undefined` while loading |
-| `useRepos()`, `useRuns()`, `useMemoryFacets()`, `useClusters()`, `useIssues(owner, name)` | the data, `null` or `[]` while loading |
+| `useRepos()`, `useRuns()`, `useMemoryFacets()`, `useClusters()`, `useIssues(owner, name)`, `useInsights()` | the data, `null` or `[]` while loading |
+| `useTriage(owner, name)` | the issue list badges, arriving a moment after the list |
+| `prewarm(owner, name)` | starts preparing the sandbox when a repository is opened or hovered |
 | `useWarmSandbox(owner, name)` | starts preparing the sandbox and returns `'warming'`, `'warm'` or `null`; polls every 4 s while warming |
 | `useRun(id)` | `{ run, events, similar, error, reload }`; updates live from a change stream (`/api/runs/[id]/stream`), with a poll as the fallback; `run.thinking` carries Argon's thought summary while a step is being thought through |
 | `useNow(active)` | the time, refreshed every second while active (the live elapsed counter) |
-| `startRun`, `uploadMedia`, `approveRun`, `rejectRun`, `stopRun`, `logout` | actions; each throws an `Error` with a message that is safe to show |
+| `startRun`, `uploadMedia`, `approveRun`, `rejectRun`, `stopRun`, `reviseRun`, `replyToReporter`, `askMemory`, `logout` | actions; each throws an `Error` with a message that is safe to show |
+| `parseEnvText(text)` | turns pasted `KEY=value` lines into env vars for the ticket form |
 
 Helpers in `client.ts`: `initials`, `diffStats`, `splitDiff`, `formatDuration`, `formatClock`, `kilo`, `ago`, and the types (`RunView`, `TimelineEvent`, `MatrixRow`, ...).
 
 ## What the data gives the screens
 
 - **Run header**: `status`, `createdAt`, `finishedAt`, `tokensUsed` (kept current while running), `tokenCap`.
-- **Timeline**: `events` in order (`seq`), each with `tokens`. Types: `understood` (with `mediaObservations` when a recording or screenshot was attached), `profile`, `boot`, `hypothesis`, `memory`, `matrix`, `root_cause`, `test_written`, `fix_attempt`, `green`, `approval_requested`, `pr_opened`, `stopped`. The first entry is "You": `run.notes` and `run.attachments`.
+- **Timeline**: `events` in order (`seq`), each with `tokens`. Types: `understood` (with `mediaObservations` and `mediaMoments` when a recording or screenshot was attached), `profile`, `boot`, `hypothesis`, `matrix`, `deep_step`, `experiment`, `concluded`, `memory`, `root_cause`, `test_written`, `fix_attempt`, `green`, `explained` ("Why this happens", with sources and the proof), `approval_requested`, `pr_opened`, `pr_update`, `revision`, `stopped`. The first entry is "You": `run.notes` and `run.attachments`.
 - **Matrix rows**: `name`, `kind` ("as reported", "neutral", "reset one", "added"), `env`, `change` ("en-US instead of tr-TR"), `engines` (`{ chromium: { ok }, webkit: { ok } }`), `failure`, `errors`. `run.isolatedRows` names the rows to highlight.
 - **Approval card**: `rootCause` (one sentence, `explanation` below it), `diff` (the test file is shown separately from `testContent`), `profile.notEmulated`, `similar`, `matrix` for the "N of M" chip, `otherProblems`.
 - **Could not reproduce**: `reason` and `suggestions` (details that would help, written by Argon from the case).

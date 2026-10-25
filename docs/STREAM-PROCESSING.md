@@ -2,7 +2,7 @@
 
 Several reports from the same environment usually mean one bug, not several. A stream processor watches new tickets and keeps one counter per repository, browser engine and locale; a counter that reaches three reports is shown on the dashboard under "Possible shared bug".
 
-**Status (25 October): created, run and verified on Atlas.** Workspace `reproducer` (London), connection `cluster0`, processor `ticketClusters` (tier SP10). Three demo tickets from one environment produced the alert 3 seconds later (count 3, three distinct reporters), and `GET /api/clusters` returned it. The processor is **stopped** to avoid billing while idle (there is no free tier): start it for the demo window, stop it right after.
+**Status (25 October): running on Atlas for the demo window.** Workspace `reproducer` (London), connection `cluster0`, processor `ticketClusters` (tier SP10). Three demo tickets from one environment produced the alert 3 seconds later (count 3, three distinct reporters), and `GET /api/clusters` returned it. Since the night of 24 to 25 October it counts the real investigations' tickets (the deep runs made three alerts on their own; all from the owner's account, so one reporter each). There is no free tier and it is billed while it runs: **stop it right after the presentation** (`sp.ticketClusters.stop()` or `setup.ts --stop`, below).
 
 ## Run it
 

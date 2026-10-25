@@ -7,7 +7,7 @@ Demo video: **[link]**
 
 ## Project description (all challenges)
 
-**ReProducer** turns "I cannot reproduce this bug" into a verified fix, for the bugs a coding assistant cannot find by reading the code: the ones that only happen to some users because of something they have. A client reports a bug that only happens on their device, in their language or in their timezone. ReProducer reads the GitHub issue and what the developer knows about the reporter (a sentence like "Samsung Z Flip, Chrome, Turkish", and optionally their screen recording), rebuilds that person's environment, runs the same steps under the reporter's profile, a neutral baseline, and one-variable variations, and isolates the one thing that only they have. It then writes a failing Playwright test, fixes the code until the test passes and the rest of the suite stays green, and asks the developer before it opens a pull request.
+**ReProducer** turns "I cannot reproduce this bug" into a verified fix, for the bugs a coding assistant cannot find by reading the code: the ones that only happen to some users because of something they have. A client reports a bug that only happens on their device, in their language or in their timezone. ReProducer reads the GitHub issue and what the developer knows about the reporter (a sentence like "customer in Munich, Chrome on Windows, German", and optionally their screen recording), rebuilds that person's environment, runs the same steps under the reporter's profile, a neutral baseline, one-variable variations and conditions the report never mentioned, investigates in depth with Argon, and isolates the one thing that only they have. It then writes a failing Playwright test, fixes the code until the test passes and the rest of the suite stays green, and asks the developer before it opens a pull request.
 
 The user is a developer who gets tickets they cannot reproduce on their own machine, where making the bug happen takes longer than fixing it.
 
@@ -24,7 +24,7 @@ What makes it different from a coding agent that reads the code: the demo bugs a
 Models and agents used, and how:
 - **gemini-4-argon, deep investigation**: one conversation with up to a million tokens of context (app, history, framework source), thinking high, and a tool loop: function calling (read and search files, git log and commits, experiments in the sandbox with probes, conclude) combined with the built-in Google Search and URL context. The fix proposal continues the same conversation, so it writes the test and the fix with everything it learned still in context.
 - **gemini-4-argon** (Interactions API): reads the issue, the developer's notes and the reporter's screen recording; builds the environment profile; proposes extra conditions to test; writes the replay plan; finds the root cause from the whole repository (long context); writes the failing test and the fix (thinking level high, JSON-schema output). Retried with feedback if verification fails.
-- **Antigravity managed agent (antigravity-preview-09-2026)**: the sandbox. A Linux environment where the repository is cloned and installed and Playwright (Chromium and WebKit) runs the replay matrix and the tests. Verification (red test, apply the fix, green tests, full matrix, diff) is a single sandbox call, so the verification loop is real test output, not the model's opinion.
+- **Antigravity managed agent (antigravity-preview-09-2026, running on Argon)**: the sandbox. A Linux environment where the repository is cloned and installed and Playwright (Chromium and WebKit) runs the replay matrix and the tests. Verification (red test, apply the fix, green tests, full matrix, diff) is a single sandbox call, so the verification loop is real test output, not the model's opinion.
 - **Streaming and thought summaries**: every Argon call streams; the reasoning appears live on the run page.
 - **Conversation state** (`previous_interaction_id`): fix retries and revisions of the pull request continue the model's own interaction, so it keeps its reasoning and the long repository prompt is cached.
 - **Built-in tools together** (Google Search grounding, code execution, URL context): after the root cause, Argon explains the underlying platform rule, cites the specification and proves it with code it runs; the sources go into the pull request.
@@ -41,13 +41,13 @@ Measured on 25 October with deep investigation: all five demo bugs were reproduc
 
 Tools: GitHub (issues, branch, commit, pull request), a Linux sandbox with Playwright, Gemini (Argon, Flash, Files API), MongoDB Atlas.
 
-Steps: read the issue and the notes; rebuild the reporter's environment; replay under the reporter, a baseline, one-variable resets and model-proposed extra conditions; isolate the cause; write a failing test; fix; verify (test red then green, whole matrix); show root cause, diff, test and a fidelity report; **wait for approval**; open the pull request.
+Steps: read the issue and the notes; rebuild the reporter's environment; replay under the reporter, a baseline, one-variable resets and model-proposed extra conditions; investigate in depth (read the code, the git history and the framework source, search the web, run experiments in real browsers) until it can name the environment that reproduces the bug and the evidence; write a failing test; fix; verify (test red then green, whole matrix); show root cause, why it happens, diff, test and a fidelity report; **wait for approval**; open the pull request; follow it and revise it after review.
 
 Where a human approves: the pull request, a revision pushed to it after review, and any reply posted to a reporter (each its own click; nothing is written to GitHub before). The approval card shows the root cause, the diff, what could not be reproduced and similar past fixes. Rejecting records the decision and pushes nothing.
 
-Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; runs left unfinished by a restart are marked as interrupted. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
+Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; a sandbox environment that was reset between calls is set up again inside the same call; runs left unfinished by a restart are marked as interrupted; a Stop button ends a run after the step it is in. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
 
-Safety: user environment variables go only to the sandbox, are never stored or logged, and a run that has them never reuses a sandbox; per-user limits (2 running, 12 per hour); the session token is encrypted in an HttpOnly cookie and never reaches the browser.
+Safety: user environment variables go only to the sandbox, are never stored or logged, and a run that has them never reuses a sandbox; per-user limits (3 running, 12 per hour); per-run caps on tokens, rounds, experiments and minutes; the session token is encrypted in an HttpOnly cookie and never reaches the browser.
 
 ## MongoDB Atlas
 
@@ -65,7 +65,7 @@ Atlas (M10) is the data store for everything the app knows. Features used and wh
 - **Vector search with a similarity score** (cosine, threshold measured on the data) powers the "looks like an issue we already fixed" badges on the issue list.
 - Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `environments` (device catalog), `approvals`, `ticket_clusters`, `pr_events`.
 
-The demo video shows MongoDB in use: **[the memory hit on the timeline, the dashboard facets, the stored events]**.
+The demo video shows MongoDB in use: the run page pushed live by a change stream, the dashboard's "what it has learned" facets, the Insights page (aggregations), an "Ask the memory" question (function calling over Atlas) and a shared-bug alert from Stream Processing.
 
 ## Short pitch (60 seconds)
 
