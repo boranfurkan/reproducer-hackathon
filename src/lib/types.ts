@@ -80,6 +80,7 @@ export type RunEventType =
   | "deep_step"
   | "experiment"
   | "concluded"
+  | "notes"
   | "stopped";
 
 export interface RunEvent {

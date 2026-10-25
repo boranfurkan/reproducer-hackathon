@@ -8,6 +8,7 @@ import type { Emit } from "./investigate";
 import { applyOverrides, describeChange, describeProfile, slugOf } from "./profiles";
 import { type RepoTree, gitLog, gitShow } from "./repo";
 import { type ReplayPlan, type ReplayStep, type Stressor, type Understanding, replayPlanSchema, stressorSchema } from "./schemas";
+import { type EarlierRun, type Trail, type TriedEnv, experimentKey, formatEarlierRuns } from "./trail";
 import { between, formatMatrix, parseMatrix, type ProfileResult } from "./verify";
 
 // The deep investigation: Argon works on the bug the way a senior engineer would, for as long as it takes (up to about half an hour).
@@ -38,6 +39,12 @@ export interface DeepInput {
   known: Map<string, EnvProfile>;
   code: string;
   tree: RepoTree;
+  /** Notes of earlier runs of this issue that ended without a fix (newest first): the investigation starts from them. */
+  earlier?: EarlierRun[];
+  /** Their experiment results on the same code, by experiment key: an identical experiment returns the stored result instead of running. */
+  reuse?: Map<string, TriedEnv>;
+  /** Filled in with what this investigation tries and learns. */
+  trail?: Trail;
   githubToken?: string;
   sandbox: AntigravitySandbox;
   budget: TokenBudget;
@@ -58,7 +65,8 @@ export interface DeepResult {
   hypothesis?: { rootCause: string; file: string; explanation: string };
   evidence: string[];
   missing: string[];
-  stats: { rounds: number; experiments: number; filesRead: number; searches: number; webSearches: number; contextTokens: number; minutes: number };
+  /** `reused`: experiment variants answered from an earlier run's notes instead of being run again. */
+  stats: { rounds: number; experiments: number; filesRead: number; searches: number; webSearches: number; contextTokens: number; minutes: number; reused: number };
   stoppedReason?: string;
 }
 
@@ -164,7 +172,7 @@ async function pageDependencies(tree: RepoTree, plan: ReplayPlan): Promise<strin
 
 export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
   const t0 = Date.now();
-  const stats = { rounds: 0, experiments: 0, filesRead: 0, searches: 0, webSearches: 0, contextTokens: 0, minutes: 0 };
+  const stats = { rounds: 0, experiments: 0, filesRead: 0, searches: 0, webSearches: 0, contextTokens: 0, minutes: 0, reused: 0 };
   const profiles = new Map(d.known);
   const observed = new Map<string, boolean>(d.round1.map((r) => [r.name, r.ok]));
   // The custom steps each experiment variant ran with (absent: the replay plan's steps).
@@ -196,6 +204,11 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     `\n=== The reporter's environment as rebuilt ===\n${JSON.stringify(d.reporter)}\n\n=== Replay plan (steps a browser follows; the final assertions describe the correct behaviour) ===\n${JSON.stringify(d.plan)}\n\n` +
     `=== Matrix round 1: the replay under the reporter's profile, a neutral baseline, one-variable resets and a few extra conditions ===\n${formatMatrix(d.round1)}\n` +
     d.round1.map((r) => `${r.name}: ${profiles.get(r.name) ? describeProfile(profiles.get(r.name)!) : ""}`).join("\n") +
+    (d.earlier?.length
+      ? `\n\n=== Earlier runs of this issue (they did not find or fix it; newest first) ===\n${formatEarlierRuns(d.earlier)}\n` +
+        "Build on this work instead of repeating it: start from their best explanation and from what they said was still missing, or test ideas they did not try. " +
+        "An experiment variant identical to one they ran (same environment, steps and probe, on the same code) returns their stored result without running again."
+      : "") +
     `\n\n=== Environment conditions for experiments ===\n${conditions}\n\n=== Files in the repository ===\n${fileList}\n\n=== Git history (newest first) ===\n${historyText || "(unavailable)"}\n\n` +
     `=== The application's own source ===\n${d.code}\n\n` +
     (preload.length ? `=== Framework and library source the failing page loads (in full) ===\n${preload.map((p) => `=== ${p.path}\n${p.text}`).join("\n\n")}\n\n` : "") +
@@ -245,10 +258,14 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     const thought = steps.filter((s) => s.type === "thought").flatMap((s) => s.summary ?? []).map((x) => x.text ?? "").join(" ").trim();
     if (thought) d.think("Investigating in depth", thought);
     const said = steps.filter((s) => s.type === "model_output").flatMap((s) => s.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join(" ").trim();
-    if (said) d.say("deep_step", said.length > 600 ? `${said.slice(0, 600)}…` : said, { tool: "note" });
+    if (said) {
+      d.say("deep_step", said.length > 600 ? `${said.slice(0, 600)}…` : said, { tool: "note" });
+      d.trail?.thought(said);
+    }
     for (const s of steps.filter((x) => x.type === "google_search_call")) {
       stats.webSearches += 1;
       const queries = (s.arguments?.queries as string[] | undefined) ?? [];
+      for (const q of queries) d.trail?.web(q);
       if (queries.length) step(`Searched the web: ${queries.slice(0, 3).join("; ")}`, { tool: "web", queries });
     }
 
@@ -308,6 +325,11 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     const evidence = ((a.evidence as string[]) ?? []).map(String).slice(0, 8);
     const missing = ((a.missing_details as string[]) ?? []).map(String).slice(0, 3);
     const hypothesis = { rootCause: String(a.root_cause ?? ""), file: String(a.file ?? ""), explanation: String(a.explanation ?? "") };
+    if (d.trail) {
+      if (hypothesis.rootCause) d.trail.hypothesis = hypothesis;
+      d.trail.evidence = evidence;
+      d.trail.missing = missing;
+    }
     if (!a.reproduced) {
       d.say("concluded", `Could not reproduce: ${hypothesis.rootCause}`, { reproduced: false, evidence, missing });
       return { reproduced: false, confirmed: false, hypothesis, evidence, missing };
@@ -335,6 +357,7 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
         const text = await d.tree.read(path);
         const total = text.split("\n").length;
         stats.filesRead += 1;
+        d.trail?.file(path);
         if (a.start_line || a.end_line) {
           const start = Math.max(1, Number(a.start_line ?? 1));
           const end = Math.min(total, Number(a.end_line ?? start + 200), start + 1500);
@@ -363,6 +386,7 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
           });
         }
         stats.searches += 1;
+        d.trail?.search(`${String(a.pattern)}${prefix ? ` in ${prefix}` : ""} (${hits.length} matches)`);
         step(`Searched the code for /${String(a.pattern)}/${prefix ? ` in ${prefix}` : ""}: ${hits.length} matches`, { tool: "search", pattern: a.pattern, prefix, matches: hits.slice(0, 5) });
         return hits.length ? hits.join("\n") : "No matches.";
       }
@@ -374,6 +398,7 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
       }
       case "git_show": {
         const out = await gitShow(d.tree.repo, String(a.sha ?? ""), d.githubToken);
+        d.trail?.commit(`${String(a.sha).slice(0, 7)} ${out.split("\n")[1]?.slice(0, 100) ?? ""}`);
         step(`Read commit ${String(a.sha).slice(0, 7)}: ${out.split("\n")[1]?.slice(0, 100) ?? ""}`, { tool: "git", sha: a.sha });
         return out;
       }
@@ -398,26 +423,56 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     });
     const steps = Array.isArray(a.steps) && a.steps.length ? (a.steps as ReplayStep[]) : d.plan.steps;
     const probe = typeof a.probe === "string" && a.probe.trim() ? a.probe.trim().slice(0, 600) : undefined;
-    const engines = [...new Set(built.map((p) => p.engine))];
-    const job: SandboxFile = {
-      path: `${HARNESS_DIR}/job.json`,
-      content: JSON.stringify({ baseUrl: "http://localhost:3100", plan: { steps }, profiles: built.map(withInitScripts), engines, ...(probe ? { probe } : {}) }),
-    };
-    let r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}`);
-    if (!between(r.stdout, "@@RESULT@@", "@@END@@")) r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}-again`);
-    const rows = parseMatrix(between(r.stdout, "@@RESULT@@", "@@END@@"), r).map((row) => {
-      const p = built.find((b) => b.name === row.name)!;
-      return { ...row, kind: "experiment", env: describeProfile(p), change: describeChange(d.reporter, p) };
-    });
+    // A variant an earlier run of this issue already ran on the same code (same environment, steps and probe) gets its stored result.
+    const keys = new Map(built.map((p) => [p.name, experimentKey(p, steps, probe)]));
+    const stored = new Map<string, TriedEnv>();
+    for (const p of built) {
+      const hit = d.reuse?.get(keys.get(p.name)!);
+      if (hit) stored.set(p.name, hit);
+    }
+    const fresh = built.filter((p) => !stored.has(p.name));
+    let ran: ProfileResult[] = [];
+    if (fresh.length) {
+      const engines = [...new Set(fresh.map((p) => p.engine))];
+      const job: SandboxFile = {
+        path: `${HARNESS_DIR}/job.json`,
+        content: JSON.stringify({ baseUrl: "http://localhost:3100", plan: { steps }, profiles: fresh.map(withInitScripts), engines, ...(probe ? { probe } : {}) }),
+      };
+      let r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}`);
+      if (!between(r.stdout, "@@RESULT@@", "@@END@@")) r = await d.sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, `experiment-${stats.experiments}-again`);
+      ran = parseMatrix(between(r.stdout, "@@RESULT@@", "@@END@@"), r);
+    }
+    stats.reused += stored.size;
+    const earlierRows: ProfileResult[] = [...stored.entries()].map(([name, t]) => ({
+      name,
+      ok: t.ok,
+      failure: t.failure ?? null,
+      ...(t.error ? { errors: [t.error] } : {}),
+      ...(t.pageText ? { pageText: t.pageText } : {}),
+      ...(t.engines ? { engines: t.engines } : {}),
+      ...(probe ? { probe: t.probeValue ?? "" } : {}),
+    }));
+    const order = new Map(built.map((p, i) => [p.name, i]));
+    const rows = [...ran, ...earlierRows]
+      .sort((x, y) => (order.get(x.name) ?? 0) - (order.get(y.name) ?? 0))
+      .map((row) => {
+        const p = built.find((b) => b.name === row.name)!;
+        return { ...row, kind: "experiment", env: describeProfile(p), change: describeChange(d.reporter, p) };
+      });
     for (const row of rows) {
       observed.set(row.name, row.ok);
       stepsOf.set(row.name, steps === d.plan.steps ? undefined : steps);
       profiles.set(row.name, built.find((b) => b.name === row.name)!);
     }
+    d.trail?.rows("experiment", rows, { probe, customSteps: steps !== d.plan.steps, keys });
     const failing = rows.filter((x) => !x.ok).length;
-    d.say("experiment", `Experiment ${stats.experiments}: ${rows.length} variant${rows.length === 1 ? "" : "s"}, ${failing} reproduce the bug${probe ? `, probe ${probe.slice(0, 80)}` : ""}`, { rows, probe, steps: steps === d.plan.steps ? undefined : steps });
+    d.say(
+      "experiment",
+      `Experiment ${stats.experiments}: ${rows.length} variant${rows.length === 1 ? "" : "s"}, ${failing} reproduce the bug${stored.size ? `, ${stored.size} answered from an earlier run` : ""}${probe ? `, probe ${probe.slice(0, 80)}` : ""}`,
+      { rows, probe, steps: steps === d.plan.steps ? undefined : steps, reused: [...stored.keys()] },
+    );
     return rows
-      .map((x) => `${x.name} [${x.change || "as reported"}]: ${x.ok ? "PASS" : `FAIL ${x.failure ?? ""}`}${x.errors?.length ? ` | errors: ${x.errors.join("; ")}` : ""}${x.pageText ? ` | page: "${x.pageText}"` : ""}${x.probe !== undefined ? ` | probe: ${x.probe}` : ""}`)
+      .map((x) => `${x.name} [${x.change || "as reported"}]: ${x.ok ? "PASS" : `FAIL ${x.failure ?? ""}`}${x.errors?.length ? ` | errors: ${x.errors.join("; ")}` : ""}${x.pageText ? ` | page: "${x.pageText}"` : ""}${x.probe !== undefined ? ` | probe: ${x.probe}` : ""}${stored.has(x.name) ? " (stored result of an earlier run, not run again)" : ""}`)
       .join("\n");
   }
 }

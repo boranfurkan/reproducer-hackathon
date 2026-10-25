@@ -5,8 +5,10 @@ The orchestrator (Argon) decides. The sandbox only executes short, pre-written c
 ## Steps
 
 1. **Understand, in parallel with the boot.**
+   - **Notes from earlier runs** of this issue that ended without a fix are loaded from `issue_notes` (D-44): what they tried, what they read, their best explanation, what was missing, the fixes verification rejected. The timeline opens with "Notes from earlier runs", and the steps below use them.
    - The developer's notes are matched against the device catalog (Atlas Search, fuzzy) so "iPhone 8 she never updated" becomes concrete numbers.
    - Argon reads the issue, the notes, the matched devices and any attached recording or screenshot, and returns: a summary, expected and actual behaviour, what the recording shows (steps, symptom, environment clues, timestamped key moments), an environment profile, and up to 5 **stressors** (extra conditions the report does not mention but that could explain "only some users": page translation, a content blocker, reduced motion, an older engine without newer APIs, another timezone, blocked storage, a slow network).
+   - With earlier notes, the stressor step is told which conditions were already tried and how they came out, and proposes ones they did not test.
    - The repository's file tree and text files are read from GitHub.
    - The sandbox is usually already warm (the warm-up starts when the repository is opened). Otherwise `boot.sh` installs Playwright into `/opt`, clones or resets the repository and installs dependencies if the lockfile changed; WebKit's system libraries finish in the background.
 2. **Replay plan.** Argon writes a short list of browser steps ending in assertions that describe the **correct** behaviour (so the plan fails when the bug is present), valid in every locale and timezone (`expect_text` accepts `/regex/`; also `expect_hidden`, counts). It is written while the sandbox is still booting.
@@ -20,10 +22,12 @@ The orchestrator (Argon) decides. The sandbox only executes short, pre-written c
    - Google Search and URL context (built-in tools next to the functions);
    - `conclude`: the variant that reproduces the bug, the root cause, the file, the explanation and the evidence, or what is missing.
 
+   With earlier notes, the first prompt carries the full hand-over and asks Argon to build on it instead of repeating it, and an experiment variant identical to one already run on the same code (same environment, steps and probe) returns the stored result without a sandbox call.
+
    Limits: 36 rounds, 32 minutes, and it stops exploring early enough to leave token budget for the fix. If the reproducing environment or steps are new, the matrix runs again (round 2) with them; steps are adopted only from a variant that failed, and they replace the replay plan.
 5. **What belongs to this issue.** A profile is *required* if it passed in round 1, is the failing profile, or failed with the same signature (same failed step, same first console error, with engine-specific error wording normalised). Profiles that failed differently are **other problems** (probably other bugs): reported on the timeline, the run page and the PR text, and the model is told not to fix them.
 6. **Memory.** `recallSimilar`: hybrid search (`$rankFusion`: Automated Embedding vector search plus lexical search, outcome-weighted) over verified past fixes of other issues, semantic score at least 0.82. Hits go on the timeline ("Seen something similar before") and into the prompt as hints.
-7. **Proposal.** Argon (thinking high) returns the root cause (file and explanation), a pull request title, a Playwright test and a candidate fix (changed files with full contents). In deep mode it continues the investigation's own conversation, so the framework source and every experiment are still in context; if that continuation fails, it starts fresh with the conclusion in the prompt. The test has two cases: the failing profile (must fail before the fix) and a default-profile control (must pass). Environment conditions reach the test through the same `conditionHook` the matrix uses.
+7. **Proposal.** Argon (thinking high) returns the root cause (file and explanation), a pull request title, a Playwright test and a candidate fix (changed files with full contents). In deep mode it continues the investigation's own conversation, so the framework source and every experiment are still in context; if that continuation fails, it starts fresh with the conclusion in the prompt. The test has two cases: the failing profile (must fail before the fix) and a default-profile control (must pass). Environment conditions reach the test through the same `conditionHook` the matrix uses. Fixes that earlier runs tried and verification rejected are listed with the reason, so they are not proposed again.
 8. **Why this happens** (in parallel with verification, D-39). Argon with Google Search, code execution and URL context explains the platform rule behind the bug, with sources and a computed proof. It can only add to the result: a failure or a slow answer is ignored.
 9. **Verification** (`verify.ts`, one sandbox call): reset the clone, add the test and run it (must be red: 1 failed, 1 passed), apply the fix, run all tests (must be green), re-run the matrix, print the diff. Files are staged under a unique directory and copied into place in that order.
 10. **Retry.** If the test is not red, the tests fail, or a required profile still fails, only the verification output goes back to Argon inside the same conversation (`previous_interaction_id`), up to `LIMITS.maxFixAttempts` (3).
@@ -32,7 +36,7 @@ The orchestrator (Argon) decides. The sandbox only executes short, pre-written c
 
 ## Stop conditions
 
-Each of these ends in a report to the developer, never a silent failure or a guess:
+Each of these ends in a report to the developer, never a silent failure or a guess, and leaves notes on the issue (`issue_notes`) so the next run of it starts from what this one tried (a verified fix resolves the open notes of its issue):
 - Not reproduced under the reporter's profile, any extra condition or any experiment (with the details that would help, and a reply to the reporter that can be drafted and posted).
 - A valid failing test could not be produced.
 - The fix attempts are exhausted.
@@ -43,7 +47,7 @@ Each of these ends in a report to the developer, never a silent failure or a gue
 
 ## Events
 
-Every step writes a `run_events` document (`seq`, `atMs`, type, summary, optional data, tokens so far), redacted and size-capped. Types: `understood`, `profile`, `boot`, `hypothesis`, `matrix`, `deep_step`, `experiment`, `concluded`, `memory`, `root_cause`, `test_written`, `fix_attempt`, `green`, `explained`, `approval_requested`, `pr_opened`, `pr_update`, `revision`, `stopped`. The run page reads them in order through a change stream; the first `profile` event also writes the `tickets` document that the stream processor counts.
+Every step writes a `run_events` document (`seq`, `atMs`, type, summary, optional data, tokens so far), redacted and size-capped. Types: `notes` (notes from earlier runs at the start, notes saved for the next run at the end), `understood`, `profile`, `boot`, `hypothesis`, `matrix`, `deep_step`, `experiment`, `concluded`, `memory`, `root_cause`, `test_written`, `fix_attempt`, `green`, `explained`, `approval_requested`, `pr_opened`, `pr_update`, `revision`, `stopped`. The run page reads them in order through a change stream; the first `profile` event also writes the `tickets` document that the stream processor counts.
 
 ## Cost and latency
 

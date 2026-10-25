@@ -53,6 +53,22 @@ export const validators: Record<string, object> = {
     required: ["runId", "login", "at", "prUrl"],
     properties: { runId: { bsonType: "objectId" }, login: str, at: { bsonType: "date" }, prUrl: str, branch: str },
   },
+  issue_notes: {
+    bsonType: "object",
+    required: ["runId", "repo", "issueNumber", "createdAt", "outcome", "mode", "tried", "summary"],
+    properties: {
+      runId: { bsonType: "objectId" },
+      repo: { bsonType: "string", pattern: "^[^/]+/[^/]+$" },
+      issueNumber: num,
+      createdAt: { bsonType: "date" },
+      outcome: { enum: ["not_reproduced", "no_fix", "stopped", "failed"] },
+      mode: { enum: ["deep", "quick"] },
+      tried: { bsonType: "array", maxItems: 80 },
+      filesRead: { bsonType: "array", maxItems: 80 },
+      summary: str,
+      resolvedAt: { bsonType: "date" },
+    },
+  },
 };
 
 /** Documents that expire on their own: the reports the stream processor reads and the alerts it writes are only useful while they are recent. */

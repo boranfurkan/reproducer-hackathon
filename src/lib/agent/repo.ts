@@ -18,6 +18,8 @@ export interface RepoFile {
 export interface RepoTree {
   repo: RepoRef;
   branch: string;
+  /** The sha GitHub reports for the default branch (its head commit): it changes whenever the code does. */
+  sha?: string;
   files: RepoFile[];
   read(path: string): Promise<string>;
 }
@@ -63,7 +65,7 @@ export async function readRepoTree(repo: RepoRef, token?: string): Promise<RepoT
     }
     return cache.get(path)!;
   };
-  return { repo, branch: info.default_branch, files, read };
+  return { repo, branch: info.default_branch, sha: tree.sha, files, read };
 }
 
 /** Read the application's own text files (not vendored code) for the prompt. */

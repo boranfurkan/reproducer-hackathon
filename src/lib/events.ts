@@ -1,8 +1,10 @@
 import { ObjectId, type Collection } from "mongodb";
 import type { Emit, InvestigationResult, Ticket } from "./agent/investigate";
+import { Trail } from "./agent/trail";
 import { LIMITS } from "./config";
 import { collection } from "./mongo";
 import { recordMemory } from "./memory";
+import { recordIssueNotes, resolveIssueNotes } from "./notes";
 import { redact, redactDeep } from "./redact";
 import type { EnvProfile, RunEventType } from "./types";
 
@@ -279,12 +281,34 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
       ),
     );
 
+  // What the run tries and learns (the investigation fills it in). A run that ends without a verified fix leaves it as notes on its issue,
+  // and the next run of that issue starts from them (notes.ts).
+  const trail = new Trail();
+  const repo = `${ticket.repo.owner}/${ticket.repo.name}`;
+  const leaveNotes = async (outcome: "not_reproduced" | "no_fix" | "stopped" | "failed", reason?: string, tokens?: number) => {
+    try {
+      const run = await runs.findOne({ _id: runId }, { projection: { createdAt: 1, tokensUsed: 1 } });
+      const minutes = Math.round(((Date.now() - (run?.createdAt ?? new Date(t0)).getTime()) / 60_000) * 10) / 10;
+      const notes = await recordIssueNotes(
+        { runId, repo, issueNumber: ticket.issueNumber, userLogin: meta.userLogin, outcome, mode: meta.mode ?? "quick", reason, developerNotes: redact(ticket.notes, secrets), minutes, tokens: tokens ?? run?.tokensUsed ?? 0 },
+        trail,
+        secrets,
+      );
+      if (notes) await appendEvent({ _id: runId, createdAt: run?.createdAt ?? new Date(t0) }, "notes", `Saved what this run tried for the next run of #${ticket.issueNumber}: ${notes.summary}`, { saved: true });
+    } catch (e) {
+      console.error("recordIssueNotes failed:", (e as Error).message);
+    }
+  };
+
   return {
     runId,
     emit,
     think,
+    trail,
     finish: async (r: InvestigationResult) => {
       await finishRun(r);
+      if (r.status !== "fixed") await leaveNotes(r.status, r.reason, r.tokensUsed);
+      else await resolveIssueNotes(repo, ticket.issueNumber, runId).catch((e) => console.error("resolveIssueNotes failed:", (e as Error).message));
       // A verified fix goes into the memory. A failure to store it must not fail the run.
       if (r.status === "fixed" && r.rootCause && r.diff && r.focusProfile) {
         const f = r.focusProfile;
@@ -303,6 +327,10 @@ export async function startRun(ticket: Ticket, secrets: string[] = [], meta: { u
         }).catch((e) => console.error("recordMemory failed:", (e as Error).message));
       }
     },
-    fail: (e: unknown) => close({ status: "failed", reason: redact(e instanceof Error ? e.message : String(e), secrets) }),
+    fail: async (e: unknown) => {
+      const reason = redact(e instanceof Error ? e.message : String(e), secrets);
+      await close({ status: "failed", reason });
+      await leaveNotes("failed", reason);
+    },
   };
 }

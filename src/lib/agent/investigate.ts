@@ -4,6 +4,8 @@ import { HARNESS_DIR, harnessFiles } from "../harness/scripts";
 import { matchDevices } from "../devices";
 import { recallSimilar } from "../memory";
 import type { MediaRef } from "../media";
+import { loadIssueNotes } from "../notes";
+import { Trail, earlierRunSummary, formatFixAttempts, formatTriedShort, reusableResults } from "./trail";
 import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
@@ -87,9 +89,12 @@ export async function investigate(
     deep?: boolean;
     /** Argon's thought summary while a step is being thought through (null when the step is done): the live "thinking" line. */
     onThinking?: (step: string, text: string | null) => void;
+    /** Filled in with what this run tries and learns; the caller stores it as notes if the run ends without a verified fix. */
+    trail?: Trail;
   } = {},
 ): Promise<InvestigationResult> {
   const t0 = Date.now();
+  const trail = opts.trail ?? new Trail();
   const budget = new TokenBudget(opts.deep ? LIMITS.maxDeepTokens : LIMITS.maxTokensPerRun);
   const sandbox = new AntigravitySandbox(budget, opts.environmentId ?? null, opts.envVars ?? {});
   const bootCmd = `bash ${HARNESS_DIR}/boot.sh https://github.com/${ticket.repo.owner}/${ticket.repo.name}.git`;
@@ -123,8 +128,18 @@ export async function investigate(
 
   // 1. In parallel: interpret the ticket, read the repo, and boot the sandbox (install, clone).
   // Known devices that match the developer's notes (Atlas Search over the catalog), so "Samsung Flip Z" gets realistic numbers.
-  const knownDevices = await matchDevices(ticket.notes, 3);
+  // Notes from earlier runs of this issue that ended without a verified fix: this run starts from what they tried and learned.
+  const [knownDevices, earlier] = await Promise.all([matchDevices(ticket.notes, 3), loadIssueNotes(`${ticket.repo.owner}/${ticket.repo.name}`, ticket.issueNumber)]);
   if (knownDevices.length) say("hypothesis", `Device catalog matches: ${knownDevices.map((d) => d.name).join(", ")}`, knownDevices);
+  if (earlier.length) {
+    say(
+      "notes",
+      `Picking up from ${earlier.length === 1 ? "an earlier run" : `${earlier.length} earlier runs`} of this issue: ${earlierRunSummary(earlier[0])}`,
+      { runs: earlier.map((n) => ({ at: new Date(n.createdAt).toISOString(), outcome: n.outcome, mode: n.mode, minutes: n.minutes, summary: earlierRunSummary(n), hypothesis: n.hypothesis?.rootCause ?? null })) },
+    );
+  }
+  const triedBefore = formatTriedShort(earlier);
+  const earlierFixes = formatFixAttempts(earlier);
   const understandP = ask<Understanding>("Reading the report", {
     budget,
     system: SYSTEM,
@@ -154,9 +169,16 @@ export async function investigate(
       "latencyMs (a slow connection), a different timezone (especially a zone that observes daylight saving time: a bug may only exist on or near the day the clocks change) or locale (decimal comma, right-to-left, Turkish casing). " +
       "Pick the ones that best fit THIS report and this kind of app; think about what a small group of real visitors has that the developer does not. " +
       "Each is tried on top of the reporter's profile, so only use values that differ from it. Use IANA timezones and BCP 47 locales. " +
-      "If the reporter's own device or browser version implies missing APIs (an old iPhone), set removeApis on the reporter profile itself.",
+      "If the reporter's own device or browser version implies missing APIs (an old iPhone), set removeApis on the reporter profile itself." +
+      (triedBefore
+        ? `\n\nEarlier runs of this issue did not find the cause. They already replayed it under these changes to the reporter's profile:\n${triedBefore}\n` +
+          "Propose stressors that test what they did not, unless the developer's notes now give a reason to try one of them again."
+        : ""),
   });
-  const treeP: Promise<RepoTree> = readRepoTree(ticket.repo, opts.githubToken);
+  const treeP: Promise<RepoTree> = readRepoTree(ticket.repo, opts.githubToken).then((tree) => {
+    trail.treeSha = tree.sha;
+    return tree;
+  });
   const digestP = treeP.then((tree) => readRepoDigest(ticket.repo, opts.githubToken, tree)).then(formatDigest);
   const bootP = sandbox
     .runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh https://github.com/${ticket.repo.owner}/${ticket.repo.name}.git`, "boot")
@@ -219,6 +241,7 @@ export async function investigate(
   if (await opts.shouldStop?.()) return stopped("Stopped by you before the replay started.");
   const m1 = await runMatrix("matrix");
   out.matrix = m1;
+  trail.rows("matrix", m1);
   say("matrix", `Matrix round 1 (${m1.length} profiles)\n${formatMatrix(m1)}`, m1);
 
   // 2b. The deep investigation: Argon with tools and experiments, over the whole codebase, its history and the framework source (deep.ts).
@@ -226,6 +249,7 @@ export async function investigate(
   let m = m1;
   if (opts.deep) {
     if (await opts.shouldStop?.()) return stopped("Stopped by you. Nothing was changed.");
+    const tree = await treeP;
     deep = await deepInvestigate({
       issueText,
       notes: ticket.notes,
@@ -235,7 +259,10 @@ export async function investigate(
       round1: m1,
       known: byName,
       code,
-      tree: await treeP,
+      tree,
+      earlier,
+      reuse: reusableResults(earlier, tree.sha),
+      trail,
       githubToken: opts.githubToken,
       sandbox,
       budget,
@@ -244,7 +271,8 @@ export async function investigate(
       shouldStop: opts.shouldStop,
     });
     out.deep = { ...deep.stats, evidence: deep.evidence, confirmed: deep.confirmed, cachedTokens: budget.cached };
-    if (deep.stoppedReason === "Stopped by you.") return stopped("Stopped by you. Nothing was changed.");
+    // Stop also after a conclusion that was already on its way when the button was pressed (the loop checks between rounds).
+    if (deep.stoppedReason === "Stopped by you." || (await opts.shouldStop?.())) return stopped("Stopped by you. Nothing was changed.");
     // What the investigation found joins the matrix (round 2), so the fix is checked against it like every other environment: a condition
     // found by experiment becomes a row, and steps it wrote to reproduce the bug become the replay (the first plan may have missed it).
     const round1Row = deep.focus ? m1.find((r) => r.name === deep!.focus!.name) : undefined;
@@ -261,6 +289,7 @@ export async function investigate(
       job = makeJob(profiles);
       m = await runMatrix("matrix-2");
       out.matrix = m;
+      trail.rows("matrix", m);
       say("matrix", `Matrix round 2 with what the investigation found (${m.length} profiles)\n${formatMatrix(m)}`, m);
     }
   }
@@ -364,7 +393,8 @@ export async function investigate(
     // reasoning and the code it read, and only the verification feedback is new; if no interaction id is known it falls back to the full prompt.
     const situation =
         `Replay matrix (same steps, different environments):\n${formatMatrix(m)}\n\n` +
-        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}\n\n`;
+        `Failing profile (the one the test must use): ${JSON.stringify(focus)}\nWhat isolates the bug: ${addedVariable ? `adding ${addedVariable} to the reporter's profile` : decisive.join(", ") || "nothing single"}.${pastText}${unrelated.length ? `\nThese profiles fail for a DIFFERENT reason and are NOT part of this issue; do not fix them: ${unrelated.map((r) => r.name).join(", ")}.` : ""}` +
+        `${earlierFixes ? `\nFixes that earlier runs of this issue tried and verification rejected (do not repeat them; learn from why they failed):\n${earlierFixes}` : ""}\n\n`;
     const tasks =
         "Do three things.\n" +
         "1. Find the root cause. rootCause: ONE sentence of at most 160 characters, without the file name (file goes in the file field). explanation: two to four sentences on the mechanism and exactly why only this environment is affected, without repeating the rootCause sentence. prTitle: a short imperative pull request title of at most 65 characters, plain text, no backticks and no file paths (for example \"Use locale-independent upper-casing for category keys\").\n" +
@@ -409,6 +439,7 @@ export async function investigate(
     const p = continueDeep ? await propose(false).catch(() => propose(true)) : await propose(false);
     if (attempt === 1) {
       out.rootCause = { rootCause: p.rootCause, file: p.file, explanation: p.explanation };
+      if (!trail.hypothesis) trail.hypothesis = out.rootCause;
       out.prTitle = p.prTitle;
       say("root_cause", `${p.file}: ${p.rootCause}`, out.rootCause);
       // Runs while the sandbox verifies the fix; never required (see explain.ts).
@@ -444,6 +475,7 @@ export async function investigate(
       : m2
         ? `Tests pass but some profiles that must pass still fail:\n${formatMatrix(m2.filter((x) => required.has(x.name)))}`
         : `After the fix the tests still fail:\n${green.slice(-1200)}`;
+    trail.fixAttempts.push({ attempt, rootCause: p.rootCause, file: p.file, summary: p.fixExplanation, outcome: feedback.replace(/\s+/g, " ").slice(0, 400) });
   }
   out.status = "no_fix";
   out.reason = `No verified fix after ${LIMITS.maxFixAttempts} attempts.`;

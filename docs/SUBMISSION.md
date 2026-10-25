@@ -16,7 +16,7 @@ What makes it different from a coding agent that reads the code: the demo bugs a
 - It tests conditions the report **never mentioned**: page translation, content blockers, reduced motion, older engines without newer APIs, daylight-saving transitions, blocked storage, slow networks. A ticket that says "customers from Germany" becomes an experiment with the page translated.
 - **Deep investigation**: Argon 4 works the bug for up to half an hour with the application, its whole git history and the full source of the framework the failing page uses in one context (react-dom alone is about 280k tokens), reading and searching code, reading commits, searching the web, and running experiments in real browsers with probes that measure the page (computed styles, whether an API exists). Every step is on the timeline.
 - The pass/fail signal is real: a test that must fail on the reporter's profile before the fix and pass after it, plus a full matrix of environments.
-- It **remembers** verified fixes and recalls similar ones before the next investigation.
+- It **remembers** verified fixes and recalls similar ones before the next investigation, and a run that did not finish leaves notes on its issue (what it tried, what it read, its best explanation, the fixes that failed), so the next run of that issue picks up where it stopped instead of repeating the work.
 - It states what it could not reproduce (real GPU, vendor browser build, real network) and stops to ask when it cannot reproduce or cannot verify.
 
 ## Google DeepMind: Build with Gemini 4 Argon
@@ -45,7 +45,7 @@ Steps: read the issue and the notes; rebuild the reporter's environment; replay 
 
 Where a human approves: the pull request, a revision pushed to it after review, and any reply posted to a reporter (each its own click; nothing is written to GitHub before). The approval card shows the root cause, the diff, what could not be reproduced and similar past fixes. Rejecting records the decision and pushes nothing.
 
-Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; a sandbox environment that was reset between calls is set up again inside the same call; runs left unfinished by a restart are marked as interrupted; a Stop button ends a run after the step it is in. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
+Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; a sandbox environment that was reset between calls is set up again inside the same call; runs left unfinished by a restart are marked as interrupted; a Stop button ends a run after the step it is in; a run that ends without a fix leaves notes on its issue, so the next attempt starts from what it tried instead of from zero. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
 
 Safety: user environment variables go only to the sandbox, are never stored or logged, and a run that has them never reuses a sandbox; per-user limits (3 running, 12 per hour); per-run caps on tokens, rounds, experiments and minutes; the session token is encrypted in an HttpOnly cookie and never reaches the browser.
 
@@ -60,10 +60,11 @@ Atlas (M10) is the data store for everything the app knows. Features used and wh
 - **Change streams**: the run page is pushed live from the run, its timeline events and its pull request history; no polling while connected.
 - **Transactions**: approving a pull request, every change to its state (review, merged, closed) and a revision are single multi-document transactions across `runs`, `approvals`, `pr_events`, `run_events` and `bug_memory`.
 - **Memory that learns**: the outcome of the pull request is stored on the memory entry and weights recall (merged fixes rank higher, closed ones lower).
+- **Notes between runs** (`issue_notes`, validated, indexed by issue): an investigation that ends without a fix stores every environment it replayed with the result, the files and commits it read, its best explanation and the fixes verification rejected; the next run of that issue starts from them, reuses stored experiment results on the same code, and a verified fix marks them resolved.
 - **Aggregation pipelines**: `$group`, `$setWindowFields` (running totals), `$lookup`, `$dateTrunc` power the Insights page and the "Ask the memory" counts.
 - **Schema validation** (`$jsonSchema`) on `runs`, `bug_memory`, `pr_events`, `approvals`; **TTL indexes** on `tickets` and `ticket_clusters`.
 - **Vector search with a similarity score** (cosine, threshold measured on the data) powers the "looks like an issue we already fixed" badges on the issue list.
-- Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `environments` (device catalog), `approvals`, `ticket_clusters`, `pr_events`.
+- Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `issue_notes`, `environments` (device catalog), `approvals`, `ticket_clusters`, `pr_events`.
 
 The demo video shows MongoDB in use: the run page pushed live by a change stream, the dashboard's "what it has learned" facets, the Insights page (aggregations), an "Ask the memory" question (function calling over Atlas) and a shared-bug alert from Stream Processing.
 

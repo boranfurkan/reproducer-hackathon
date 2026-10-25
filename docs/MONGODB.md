@@ -16,6 +16,7 @@ Cluster: Atlas **M10** (dedicated, 2 GB RAM, 10 GB storage, server 8.0.34). Auto
 | `approvals` | Who approved which pull request and when |
 | `pr_events` | History of a run's pull request: opened, reviews and comments, merged, closed, revisions |
 | `ticket_clusters` | The stream processor's counters per repository, engine and locale (the shared-bug alerts); expires 30 days after the last ticket |
+| `issue_notes` | One document per run that ended without a verified fix: every environment it replayed with the result, files, searches and commits it read, its best explanation and what was missing, fixes that verification rejected. The next run of the same issue starts from them; a verified fix resolves them (D-44) |
 
 Design rules (from the schema design skill): no unbounded arrays inside a document, embed data that is read together, reference data that grows. Events are the growing part, so they get their own collection with an index on `runId` and `seq`.
 
@@ -33,15 +34,16 @@ Never stored: user env vars, tokens, API keys. Everything written to `runs` and 
 | **Change streams** | `GET /api/runs/[id]/stream` | The run page is pushed live: `db.watch()` filtered to the run, its events and its pull request history, forwarded as server-sent events (about 70 ms to the browser) |
 | **Transactions** | approve route, `prtrack.ts`, `revise.ts` | Each is one multi-document transaction: approving (`runs`, `approvals`, `run_events`, `pr_events`), a change of the pull request's state and pushing a revision (`runs`, `pr_events`, `run_events`, `bug_memory`) |
 | **Memory that learns** | `OUTCOME_WEIGHT` in `memory.ts` | The pull request's outcome is stored on the memory entry and weights recall: merged ×1.25, closed ×0.6 |
+| **Notes between runs** | `src/lib/notes.ts`, index `notes_issue_recent` | A run that did not fix its issue stores what it tried; the next run of that issue loads the open notes (newest first), builds on them, and reuses stored experiment results on the same code; a verified fix marks them resolved |
 | **Aggregation pipelines** | `src/lib/insights.ts`, `memory_counts` in `src/lib/agent/ask.ts` | The Insights page (`$dateTrunc`, `$group`, `$setWindowFields` running totals, `$cond`, `$avg`, `$lookup` into `pr_events`); grouped counts for Ask the memory |
-| **Schema validation** (`$jsonSchema`) | `src/lib/schema.ts`, applied by `db:setup` | `runs`, `bug_memory`, `pr_events`, `approvals` reject malformed documents (code 121); other fields stay free |
+| **Schema validation** (`$jsonSchema`) | `src/lib/schema.ts`, applied by `db:setup` | `runs`, `bug_memory`, `pr_events`, `approvals`, `issue_notes` reject malformed documents (code 121); other fields stay free |
 | **TTL indexes** | `tickets_expire`, `clusters_expire` | `tickets` and `ticket_clusters` expire after 30 days |
 
 ## Indexes
 
 Created by `npm run db:setup` (`scripts/setup-db.ts`, safe to repeat; it waits until the search indexes are queryable):
 
-- `run_events` `{runId, seq}` (events carry a `seq` counter because timestamps can tie), `runs` `{createdAt}` and `{status, createdAt}`, `tickets` `{repo, issueNumber}`, `environments` `{name}` (unique), `approvals` `{runId}`, `pr_events` `{runId, at}`, plus the two TTL indexes.
+- `run_events` `{runId, seq}` (events carry a `seq` counter because timestamps can tie), `runs` `{createdAt}` and `{status, createdAt}`, `tickets` `{repo, issueNumber}`, `environments` `{name}` (unique), `approvals` `{runId}`, `pr_events` `{runId, at}`, `issue_notes` `{repo, issueNumber, createdAt}`, plus the two TTL indexes.
 - Search indexes: `bug_memory_vector`, `bug_memory_code`, `bug_memory_search`, `environments_search`.
 
 ## Thresholds (measured on the real memory)

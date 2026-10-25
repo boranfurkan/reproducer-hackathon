@@ -46,7 +46,7 @@ async function main() {
         console.log(`${stamp()} ${type.toUpperCase().padEnd(18)} ${summary}`);
         record?.emit(type, summary, data);
       },
-      { environmentId: flag("--env") ?? null, githubToken, deep: args.includes("--deep") },
+      { environmentId: flag("--env") ?? null, githubToken, deep: args.includes("--deep"), trail: record?.trail },
     );
   } catch (e) {
     await record?.fail(e);

@@ -27,6 +27,9 @@ async function main() {
   // Pull request history of a run (opened, review activity, merged, closed): read per run, newest last.
   await database.collection("pr_events").createIndex({ runId: 1, at: 1 }, { name: "pr_run_time" });
 
+  // Notes from unfinished runs: the open notes of one issue, newest first (read when a new run of that issue starts).
+  await database.collection("issue_notes").createIndex({ repo: 1, issueNumber: 1, createdAt: -1 }, { name: "notes_issue_recent" });
+
   // Schema validation (moderate: documents that predate it stay valid) and expiry of data that is only useful while it is recent.
   for (const [name, validator] of Object.entries(validators)) {
     await database.command({ collMod: name, validator: { $jsonSchema: validator }, validationLevel: "moderate", validationAction: "error" });

@@ -25,7 +25,7 @@ export async function collection<T extends object>(name: CollectionName): Promis
 }
 
 /** Every collection the app uses. See docs/MONGODB.md. */
-export const COLLECTIONS = ["tickets", "environments", "runs", "run_events", "bug_memory", "approvals", "ticket_clusters", "pr_events"] as const;
+export const COLLECTIONS = ["tickets", "environments", "runs", "run_events", "bug_memory", "approvals", "ticket_clusters", "pr_events", "issue_notes"] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 export async function closeMongo(): Promise<void> {

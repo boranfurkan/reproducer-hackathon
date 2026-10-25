@@ -8,9 +8,9 @@ Built, tested and ready to record. All five demo bugs were investigated in deep 
 
 | Piece | State |
 |---|---|
-| App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3. GitHub login, repository and issue pickers with triage badges, ticket form (notes, recording or screenshot, env vars, Deep or Quick), live run page (change stream, Argon's thinking, deep investigation steps, Stop), approval card, pull request creation, tracking and revisions, reply drafts for bugs that could not be reproduced, dashboard (recent runs, shared-bug alerts, what it has learned, Ask the memory), Insights. Typechecks, lints clean, 25 unit tests pass (`npm test`), builds. |
+| App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3. GitHub login, repository and issue pickers with triage badges, ticket form (notes, recording or screenshot, env vars, Deep or Quick), live run page (change stream, Argon's thinking, deep investigation steps, Stop), approval card, pull request creation, tracking and revisions, reply drafts for bugs that could not be reproduced, dashboard (recent runs, shared-bug alerts, what it has learned, Ask the memory), Insights. Typechecks, lints clean, 29 unit tests pass (`npm test`), builds. |
 | Demo repo `boranfurkan/reproducer-hackathon-demo` | "Pagefold Books": five apps in five stacks (React 18.2, Vue 3.4, plain JS, Preact 10, Alpine.js 3.13) with vendored pinned framework files and no build step, and five bugs that code review does not find (issues #8 to #12, `docs/DEMO-BUGS.md`). The first bug set (issues #1 to #4) and its pull requests (#5 to #7) are closed. |
-| Investigation | Quick mode (matrix, proposal, verification) and deep mode (D-42: an Argon tool loop over the app, its git history and the framework source, with experiments in the sandbox). Environment conditions beyond Playwright's options: page translation, content blocker, older browser without listed APIs, blocked storage, slow network (D-41). See `docs/AGENT-LOOP.md`. |
+| Investigation | Quick mode (matrix, proposal, verification) and deep mode (D-42: an Argon tool loop over the app, its git history and the framework source, with experiments in the sandbox). Environment conditions beyond Playwright's options: page translation, content blocker, older browser without listed APIs, blocked storage, slow network (D-41). A run that ends without a fix leaves notes on its issue, and the next run of it starts from them (D-44). See `docs/AGENT-LOOP.md`. |
 | Memory and search (MongoDB) | M10 cluster. `bug_memory` with Automated Embedding (voyage-4, voyage-code-4) and a lexical index, hybrid recall, similarity thresholds measured on real data, facets, a device catalog with fuzzy search, change streams, transactions, validators, TTL, Insights aggregations. See `docs/MONGODB.md`. |
 | Stream Processing | **Running** on Atlas (workspace `reproducer`, processor `ticketClusters`, SP10) since the night of 24 to 25 October. Billed while it runs: stop it after the presentation (`docs/STREAM-PROCESSING.md`). |
 | Video and screenshots | Argon reads a recording through the Files API, with timestamped key moments (tested standalone and at the API level; the upload form has not been clicked through in a browser). |
@@ -33,6 +33,7 @@ Usage over the night (from MongoDB, runs created after midnight London time): 23
 
 ## Verified
 
+- **25 Oct, morning**: notes between runs (D-44) end to end on issue #10 through the web app: a run stopped after its first experiment left notes in `issue_notes`; the next run of the issue opened with them, concluded without repeating the experiment, was fixed and verified in 5 min and 144k tokens (overnight without notes: 14 min, 235k), and the notes were marked resolved. The notes path was also tested against Atlas on its own (dates and ids kept, secrets redacted, the validator rejects a bad document, empty trails store nothing).
 - **25 Oct, overnight**: the five deep runs above, end to end through the web app; Stream Processing alerts from real tickets; Ask the memory and the learned panel on real memory; history of both repositories scanned for Gemini keys, GitHub tokens, connection strings with credentials and attribution lines (clean: the only matches are placeholders and test fixtures).
 - **24 Oct**: GitHub login in the browser and a real pull request opened from the Approve button (PR #5 on the demo repo, since closed); a clean clone passes install, typecheck, lint, tests and build without `.env.local`; the whole web path with real GitHub data; memory recall across runs; ownership checks, approval gating, tampered cookies, upload types, rate limits and stale runs on the routes; pull request creation against a mock GitHub API (`src/lib/github.test.ts`); a revision of a pull request from a reviewer comment (D-33); UI screenshots at desktop and phone width.
 
@@ -70,7 +71,7 @@ src/lib/
   gemini.ts            client, TokenBudget (new, cached and peak context tokens), withRetry (429/503 backoff), SpendingCapError
   redact.ts            secret redaction for anything stored or shown
   mongo.ts             single shared client (globalThis), db(), collection(), COLLECTIONS
-  schema.ts            $jsonSchema validators and TTL definitions
+  schema.ts            $jsonSchema validators (runs, bug_memory, pr_events, approvals, issue_notes) and TTL definitions
   events.ts            RunDoc/RunEventDoc/ApprovalDoc/TicketDoc, startRun(): emit/finish/fail, the tickets the stream processor reads
   auth.ts, api.ts      AES-256-GCM encrypted session cookie; requireSession(), githubError() for route handlers
   github.ts            Octokit helpers: repos, issues, openFixPullRequest, pull request feedback, push to a branch, comments
@@ -82,6 +83,7 @@ src/lib/
   prtrack.ts           pull request tracking in transactions, memory outcome
   revise.ts            pull request revisions from review comments
   insights.ts          the Insights aggregations
+  notes.ts             issue_notes: store what an unfinished run tried, load it for the next run of the issue, resolve it on a fix
   hooks.ts, client.ts  ALL data fetching and actions for the UI, and the shared HTTP types (docs/UI.md)
   agent/
     argon.ts           askJson(): Argon with JSON-schema output, streaming thoughts, conversation state
@@ -90,6 +92,7 @@ src/lib/
     repo.ts            repository tree, on-demand reads, digest, git log and commits from GitHub
     investigate.ts     the loop
     deep.ts            the deep investigation's tool loop (D-42)
+    trail.ts           what a run tries and learns, experiment keys, the hand-over text for the next run (D-44)
     verify.ts          red test, fix, green tests, matrix, diff (shared by the loop and revisions)
     explain.ts         "Why this happens": Google Search, code execution and URL context together
     ask.ts             Ask the memory (function calling over MongoDB)

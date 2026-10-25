@@ -15,7 +15,7 @@ Next.js server (long-running process)
    │     ├─ gemini-3.8-flash: triage, pull request summary, reply drafts, Ask the memory
    │     └─ Sandbox interface ──► Antigravity managed agent on Argon (Linux, Playwright: Chromium, WebKit)
    ├─ Octokit: issues, files, git history, branch, commit, pull request, reviews, comments
-   └─ MongoDB Atlas: tickets, runs, events, memory, approvals, pull request history, device catalog
+   └─ MongoDB Atlas: tickets, runs, events, memory, notes between runs, approvals, pull request history, device catalog
          └─ Atlas Stream Processing: tickets ──► ticket_clusters (shared-bug alerts)
 ```
 
@@ -64,6 +64,7 @@ Every run route checks that the run belongs to the signed-in user. Pages: `/`, `
 - `agent/`: `argon.ts` (JSON output, streaming, conversation state), `schemas.ts`, `profiles.ts` (baseline, one-variable resets, stressors, overrides, failure signatures), `repo.ts` (file tree, on-demand reads, digest and git history from GitHub), `investigate.ts` (the loop), `deep.ts` (the deep investigation's tool loop), `verify.ts` (red test, fix, green tests, matrix), `explain.ts` (why the platform behaves so, with search and code execution), `ask.ts`, `triage.ts`, `reply.ts`, `pr.ts`.
 - `harness/conditions.ts`: page translation, content blocker, removed APIs and slow network, shared by the matrix and the generated tests. `harness/scripts.ts`: scripts that run inside the sandbox.
 - `prtrack.ts`, `revise.ts`, `insights.ts`, `memory.ts`, `devices.ts`, `media.ts`: pull request tracking, revisions, Insights aggregations, memory and search, device catalog, Files API.
+- `agent/trail.ts` and `notes.ts`: what a run tries and learns, stored as notes on the issue when it ends without a fix, and handed to the next run of that issue (D-44).
 - `sandbox/antigravity.ts`: the sandbox implementation.
 
 See [STATUS.md](STATUS.md) for the full layout and how to run it, and [AGENT-LOOP.md](AGENT-LOOP.md) for the steps.

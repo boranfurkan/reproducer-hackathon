@@ -23,6 +23,7 @@ Built solo for Encode London Hackathon 2026. Entered in: Google DeepMind (Gemini
 - **Investigates in depth.** One Argon conversation with up to a million tokens of context: the report, the matrix, the application, the whole git history and the full source of the vendored framework files the failing page loads (React's `react-dom` alone is about 280k tokens). Argon reads and searches any file, reads commits, searches the web, and runs experiments in the sandbox: up to six environment variants at once, with a probe expression measured in the page (a computed style, whether an API exists, the DOM state). It concludes with the environment that reproduces the bug and the evidence.
 - **Proves the fix.** A Playwright test must fail on the failing environment before the change and pass after it, existing tests must stay green, and the matrix must pass. The proposal continues the investigation's own conversation, so the fix is written with everything it learned still in context.
 - **Remembers**, and learns from what reviewers did with its pull requests.
+- **Picks up where it stopped.** A run that does not fix its issue (out of time, stopped, not reproduced, fix rejected) leaves notes in MongoDB: every environment it replayed with the result, what it read, its best explanation, what was missing, the fixes that failed. The next run of that issue starts from them instead of repeating the work, and an experiment it already ran on the same code returns the stored result.
 - **Says what it could not reproduce** (real GPU, a vendor's browser build, real network) instead of pretending.
 
 ## Demo bugs
@@ -53,12 +54,13 @@ The agent found and fixed all five end to end with deep investigation (see [docs
 **MongoDB Atlas**
 - **Automated Embedding** (Voyage `voyage-4` on symptoms, `voyage-code-4` on diffs), **Vector Search**, **Atlas Search** with facets, **Hybrid Search** (`$rankFusion`) for "have we seen this before?", fuzzy search over a device catalog.
 - **Change streams** push the run page live; **transactions** keep the run, the approval, the pull request history and the memory consistent; the memory learns whether its pull requests were merged.
+- **Notes between runs**: an unfinished investigation hands its work to the next run of the same issue through `issue_notes`.
 - **Atlas Stream Processing** (running): a processor reads new tickets from a change stream and keeps a counter per repository, engine and locale; several reports from one environment become a "possible shared bug" alert.
 - **Aggregation pipelines** (`$setWindowFields`, `$lookup`, `$group`) power the Insights page; **schema validation** and **TTL indexes** keep the data clean.
 
 **Agents That Ship**
 - Does the whole job: reads the issue, reproduces, investigates, tests, fixes, verifies, opens a pull request, follows it, revises it.
-- Knows when to stop and ask: it ends with a report and a drafted question to the reporter when it cannot reproduce.
+- Knows when to stop and ask: it ends with a report and a drafted question to the reporter when it cannot reproduce, and leaves notes so the next attempt does not start from zero.
 - Control and safety: every write to GitHub (pull request, revision, reply) is its own approval click; every step is recorded; per-run token, round and time caps; user environment variables go only to the sandbox and are never stored; rate limits per user; a Stop button.
 
 ## Stack

@@ -40,7 +40,6 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
   });
   const device = events.find((e) => e.type === 'hypothesis' && e.summary.startsWith('Device catalog matches:'));
   let fixes = 0;
-  let matrices = 0;
   for (const e of events) {
     const base = { id: String(e.seq), t: secs(e.atMs) };
     const line = firstLine(e.summary);
@@ -74,8 +73,31 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       }
       case 'matrix': {
         const rows = Array.isArray(e.data) ? (e.data as MatrixRow[]) : [];
-        const after = matrices++ > 0 || line.startsWith('Matrix after');
-        out.push({ ...base, who: 'agent', label: after ? 'Matrix after the fix' : 'Replay matrix', summary: after ? 'The same replay again, with the fix applied.' : `The same replay under ${rows.length} profiles, in every engine.`, matrix: { rows, after } });
+        const after = line.startsWith('Matrix after');
+        const round2 = line.startsWith('Matrix round 2');
+        out.push({
+          ...base,
+          who: 'agent',
+          label: after ? 'Matrix after the fix' : round2 ? 'Replay matrix, round 2' : 'Replay matrix',
+          summary: after ? 'The same replay again, with the fix applied.' : round2 ? 'The replay again, with what the investigation found.' : `The same replay under ${rows.length} profiles, in every engine.`,
+          matrix: { rows, after },
+        });
+        break;
+      }
+      case 'notes': {
+        const d = e.data as { saved?: boolean; runs?: { at: string; outcome: string; mode: string; minutes: number; summary: string }[] } | undefined;
+        if (d?.saved) {
+          out.push({ ...base, who: 'agent', label: 'Notes for the next run', summary: line.replace(/^Saved what this run tried for the next run of #\d+:\s*/, 'Saved in MongoDB, so the next run of this issue starts from here: ') });
+        } else {
+          const outcome: Record<string, string> = { not_reproduced: 'not reproduced', no_fix: 'no verified fix', stopped: 'stopped', failed: 'failed' };
+          out.push({
+            ...base,
+            who: 'agent',
+            label: 'Notes from earlier runs',
+            summary: 'Earlier runs of this issue ended without a fix. Starting from what they tried, so nothing is repeated.',
+            list: (d?.runs ?? []).map((r) => ({ title: r.summary, sub: `${outcome[r.outcome] ?? r.outcome} after ${r.minutes} min, ${r.mode}, ${new Date(r.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` })),
+          });
+        }
         break;
       }
       case 'root_cause':
