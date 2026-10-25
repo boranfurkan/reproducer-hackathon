@@ -62,7 +62,8 @@ export const ADBLOCK_URL_PATTERN =
 /** Elements a content blocker hides (cosmetic filters for ad-like class names). */
 export const ADBLOCK_CSS = ".ad, .ads, .advert, .ad-banner, .adsbygoogle, .sponsored, [id^='ad-'], [class*='sponsor-']{display:none !important}";
 
-export const adBlockInitScript = `(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(ADBLOCK_CSS)}; (document.head || document.documentElement).appendChild(s); })();`;
+// An init script runs before the document exists, so the cosmetic rules are added once it does.
+export const adBlockInitScript = `(() => { const add = () => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(ADBLOCK_CSS)}; (document.head || document.documentElement).appendChild(s); }; if (document.documentElement) add(); else document.addEventListener('DOMContentLoaded', add); })();`;
 
 /** Deletes the given APIs before the page runs. Walks up the prototype chain to the object that owns the property. */
 export function removeApisScript(paths: string[]): string {

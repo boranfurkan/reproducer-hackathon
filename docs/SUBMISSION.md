@@ -7,13 +7,14 @@ Demo video: **[link]**
 
 ## Project description (all challenges)
 
-**ReProducer** turns "I cannot reproduce this bug" into a verified fix. A client reports a bug that only happens on their device, in their language or in their timezone. ReProducer reads the GitHub issue and what the developer knows about the reporter (a sentence like "Samsung Z Flip, Chrome, Turkish", and optionally their screen recording), rebuilds that person's environment, runs the same steps under the reporter's profile, a neutral baseline, and one-variable variations, and isolates the one thing that only they have. It then writes a failing Playwright test, fixes the code until the test passes and the rest of the suite stays green, and asks the developer before it opens a pull request.
+**ReProducer** turns "I cannot reproduce this bug" into a verified fix, for the bugs a coding assistant cannot find by reading the code: the ones that only happen to some users because of something they have. A client reports a bug that only happens on their device, in their language or in their timezone. ReProducer reads the GitHub issue and what the developer knows about the reporter (a sentence like "Samsung Z Flip, Chrome, Turkish", and optionally their screen recording), rebuilds that person's environment, runs the same steps under the reporter's profile, a neutral baseline, and one-variable variations, and isolates the one thing that only they have. It then writes a failing Playwright test, fixes the code until the test passes and the rest of the suite stays green, and asks the developer before it opens a pull request.
 
 The user is a developer who gets tickets they cannot reproduce on their own machine, where making the bug happen takes longer than fixing it.
 
-What makes it different from a coding agent that "tries things":
+What makes it different from a coding agent that reads the code: the demo bugs are invisible in the code. A page that goes white only when Chrome translates it for German customers (React 18 and the browser's `<font>` rewriting), a drawer that never closes for people who asked their Mac for less motion (an accessibility commit made `transitionend` never fire), a pay button that dies under a content blocker, a session that disappears on the night the UK clocks go back, a page that is blank on an iPhone that was never updated past iOS 14. ReProducer finds them by rebuilding the environment and experimenting:
 - It reconstructs the **environment** (engine, viewport, pixel ratio, touch, locale, timezone, blocked storage), using a device catalog in MongoDB and the reporter's recording.
-- It tests conditions the report **never mentioned**. One of the demo bugs (a blank page) only appears with blocked storage, and the ticket says only "opened from Instagram": the reporter's own profile passes, an extra condition proposed by the model reproduces it.
+- It tests conditions the report **never mentioned**: page translation, content blockers, reduced motion, older engines without newer APIs, daylight-saving transitions, blocked storage, slow networks. A ticket that says "customers from Germany" becomes an experiment with the page translated.
+- **Deep investigation**: Argon 4 works the bug for up to half an hour with the application, its whole git history and the full source of the framework the failing page uses in one context (react-dom alone is about 280k tokens), reading and searching code, reading commits, searching the web, and running experiments in real browsers with probes that measure the page (computed styles, whether an API exists). Every step is on the timeline.
 - The pass/fail signal is real: a test that must fail on the reporter's profile before the fix and pass after it, plus a full matrix of environments.
 - It **remembers** verified fixes and recalls similar ones before the next investigation.
 - It states what it could not reproduce (real GPU, vendor browser build, real network) and stops to ask when it cannot reproduce or cannot verify.
@@ -21,6 +22,7 @@ What makes it different from a coding agent that "tries things":
 ## Google DeepMind: Build with Gemini 4 Argon
 
 Models and agents used, and how:
+- **gemini-4-argon, deep investigation**: one conversation with up to a million tokens of context (app, history, framework source), thinking high, and a tool loop: function calling (read and search files, git log and commits, experiments in the sandbox with probes, conclude) combined with the built-in Google Search and URL context. The fix proposal continues the same conversation, so it writes the test and the fix with everything it learned still in context.
 - **gemini-4-argon** (Interactions API): reads the issue, the developer's notes and the reporter's screen recording; builds the environment profile; proposes extra conditions to test; writes the replay plan; finds the root cause from the whole repository (long context); writes the failing test and the fix (thinking level high, JSON-schema output). Retried with feedback if verification fails.
 - **Antigravity managed agent (antigravity-preview-09-2026)**: the sandbox. A Linux environment where the repository is cloned and installed and Playwright (Chromium and WebKit) runs the replay matrix and the tests. Verification (red test, apply the fix, green tests, full matrix, diff) is a single sandbox call, so the verification loop is real test output, not the model's opinion.
 - **Streaming and thought summaries**: every Argon call streams; the reasoning appears live on the run page.
@@ -33,7 +35,7 @@ Models and agents used, and how:
 
 Real verification loop: failing test on the reporter's environment before the change, passing after, existing tests green, all required environments pass. Human control: the pull request is only opened after the developer clicks Approve; nothing is pushed before that.
 
-Measured on 24 October: all four demo bugs were fixed end to end by the agent on the first attempt, in about 4 to 5 minutes (a cold sandbox adds about 2), 77k to 95k tokens each, in 11 of 11 runs made with the final rules; the inputs tried were text only, a screen recording and a screenshot.
+**[Measured on 25 October with deep investigation: fill in from docs/STATUS.md once all five demo bugs have run.]**
 
 ## Agents That Ship
 
@@ -67,4 +69,4 @@ The demo video shows MongoDB in use: **[the memory hit on the timeline, the dash
 
 ## Short pitch (60 seconds)
 
-"You get a ticket: 'the page is blank for some customers'. It works on your machine. You lose a day just making it happen. ReProducer takes the issue and one sentence about the customer, 'iPhone, opened from Instagram', rebuilds that environment, and tries things you did not think to try. Here the reporter's profile passes. It adds one condition, blocked storage, and the page goes white. It finds the module that reads localStorage on load, writes a failing test, fixes it, proves the test goes from red to green, and shows you the diff. You click approve, and only then does it open the pull request. And the next time a bug looks like this one, it remembers."
+"You get a ticket: 'the shop goes white when I empty my basket'. It works on your machine, and the code looks fine. A coding assistant reads it and finds nothing, because there is nothing wrong in the code. ReProducer takes the issue and one sentence, 'customer in Munich, Chrome, German', and investigates like a senior engineer: it loads the app, its history and the whole React source into Argon's context, and experiments in real browsers. German customer, English shop: Chrome translates the page. With translation on, the page goes white. It reads React's commit path, finds the text node the translator replaced, writes a test that fails with translation and passes without, fixes it, and proves it goes from red to green. You click approve, and only then does it open the pull request."

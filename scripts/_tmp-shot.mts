@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+import { seal } from "../src/lib/auth";
+import { db } from "../src/lib/mongo";
+const issue = Number(process.argv[2]); const out = process.argv[3];
+const run = await (await db()).collection("runs").findOne({ issueNumber: issue }, { sort: { createdAt: -1 } });
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+await ctx.addCookies([{ name: "reproducer_session", value: seal({ login: "boranfurkan", name: "Boran Furkan", avatar: "", token: process.env.GH_READ_TOKEN!, exp: Date.now() + 3600_000 }), url: "http://localhost:3000" }]);
+const page = await ctx.newPage();
+await page.goto(`http://localhost:3000/${process.argv[4] ?? `runs/${run!._id}`}`, { waitUntil: "networkidle" });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: out, fullPage: true });
+await browser.close();
+process.exit(0);

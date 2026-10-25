@@ -19,7 +19,7 @@ interface Entry {
   proof?: { code: string; output: string };
   observ?: { title: string; text: string; moments?: { at: string; what: string }[] };
   list?: { title: string; sub: string }[];
-  matrix?: { rows: MatrixRow[]; after: boolean };
+  matrix?: { rows: MatrixRow[]; after: boolean; experiment?: boolean };
   out?: { text: string; tone: 'fail' | 'pass' };
 }
 
@@ -121,7 +121,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
           who: 'agent',
           label: line.split(':')[0],
           summary: line.slice(line.indexOf(':') + 1).trim(),
-          matrix: { rows, after: false },
+          matrix: { rows, after: false, experiment: true },
           ...(d?.probe ? { list: rows.map((r) => ({ title: r.name, sub: `probe → ${r.probe ?? ''}` })) } : {}),
           tone: rows.some((r) => !r.ok) ? 'fail' : undefined,
         });
@@ -231,7 +231,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
               )}
               {e.matrix && (
                 <div className="mt-1">
-                  <MatrixTable rows={e.matrix.rows} isolated={e.matrix.after ? [] : isolated} isolatedLabel={e.matrix.after ? undefined : label} added={added} otherRows={(run.otherProblems ?? []).map((o) => o.profile)} />
+                  <MatrixTable rows={e.matrix.rows} isolated={e.matrix.after || e.matrix.experiment ? [] : isolated} isolatedLabel={e.matrix.after || e.matrix.experiment ? undefined : label} added={added} otherRows={e.matrix.experiment ? [] : (run.otherProblems ?? []).map((o) => o.profile)} />
                 </div>
               )}
               {e.out && <pre className={`m-0 max-h-64 overflow-auto rounded-md border border-purple-800 bg-code px-3 py-2.5 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap ${e.out.tone === 'fail' ? 'text-[#ffb3ab]' : 'text-[#a6f3cd]'}`}>{e.out.text}</pre>}
