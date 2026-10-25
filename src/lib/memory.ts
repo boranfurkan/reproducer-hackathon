@@ -117,7 +117,7 @@ export async function recordMemory(m: Omit<BugMemoryDoc, "memoryText" | "created
  * "Seen something like this?": semantic search (Automated Embedding) and lexical search fused with $rankFusion.
  * Returns an empty list if the indexes are not ready or the query fails: memory is a hint, never a requirement.
  */
-export async function recallSimilar(queryText: string, limit = 3, minSemantic = 0): Promise<MemoryHit[]> {
+export async function recallSimilar(queryText: string, limit = 3, minSemantic = 0, exclude?: { repo: string; issueNumber: number }): Promise<MemoryHit[]> {
   try {
     const col = await collection<BugMemoryDoc>("bug_memory");
     // A fused rank only orders results; with a small memory it always returns something. When asked, keep only hits whose semantic
@@ -159,7 +159,7 @@ export async function recallSimilar(queryText: string, limit = 3, minSemantic = 
       score: Number(d.score?.value ?? 0) * OUTCOME_WEIGHT[(d.outcome as keyof typeof OUTCOME_WEIGHT) ?? "open"],
       outcome: d.outcome,
     }))
-      .filter((h) => !related || related.has(h.id))
+      .filter((h) => (!related || related.has(h.id)) && !(exclude && h.repo === exclude.repo && h.issueNumber === exclude.issueNumber))
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   } catch (e) {
