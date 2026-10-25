@@ -49,3 +49,6 @@ next-env.d.ts
 # recorded demos
 .demo/
 .ui-shots/
+
+# local throwaway scripts
+scripts/_tmp*
