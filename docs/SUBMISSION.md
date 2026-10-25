@@ -54,7 +54,7 @@ Atlas (M10) is the data store for everything the app knows. Features used and wh
 - **Vector Search**: "which past bugs look like this one" and "which past fixes look like this diff".
 - **Atlas Search** (lexical, with token fields and facets): full-text search over past bugs; facets on the dashboard (what isolated each bug, engine, locale); fuzzy search over a **device catalog** that turns "Samsng Galaxy Z Flip" or "windows pc 23 inch monitor with nvidia rtx3060" into a realistic environment.
 - **Hybrid Search** (`$rankFusion`, semantic weight 0.7 and lexical 0.3): the "have we seen this before?" step that runs before the model proposes a fix. The hits appear on the timeline and in the prompt as hints.
-- **Atlas Stream Processing** **[only if the processor was started]**: a change stream on new tickets, a hopping window and `$merge` flag several reports from the same environment as one probable bug.
+- **Atlas Stream Processing**: a processor reads new tickets from a change stream and keeps one counter per repo, engine and locale with `$merge` and an update pipeline; three reports from one environment become a "possible shared bug" alert on the dashboard within seconds (run and verified on Atlas, workspace `reproducer`).
 - **Change streams**: the run page is pushed live from the run, its timeline events and its pull request history; no polling while connected.
 - **Transactions**: approving a pull request, every change to its state (review, merged, closed) and a revision are single multi-document transactions across `runs`, `approvals`, `pr_events`, `run_events` and `bug_memory`.
 - **Memory that learns**: the outcome of the pull request is stored on the memory entry and weights recall (merged fixes rank higher, closed ones lower).

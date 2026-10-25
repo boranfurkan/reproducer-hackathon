@@ -1,5 +1,5 @@
 // Make a shared-bug alert appear without waiting for three real reports: inserts three tickets from the same environment (marked as demo
-// data), which the stream processor groups into one alert. `npm run demo:cluster` adds them, `npm run demo:cluster -- --clean` removes them
+// data), which the stream processor counts into one alert. `npm run demo:cluster` adds them, `npm run demo:cluster -- --clean` removes them
 // and the alert they produced.
 import { COLLECTIONS, closeMongo, collection } from "../src/lib/mongo";
 
@@ -27,7 +27,7 @@ async function main() {
       environment: { engine: "chromium", locale: "tr-TR", timezoneId: "Europe/Istanbul", mobile: true },
     })),
   );
-  console.log("Inserted 3 demo tickets from chromium / tr-TR. With the processor running, the alert appears within about a minute (the window hops every minute).");
+  console.log("Inserted 3 demo tickets from chromium / tr-TR. With the processor running, the alert appears within a few seconds.");
 }
 
 main()

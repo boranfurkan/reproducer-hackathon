@@ -4,34 +4,81 @@
       "connectionName": "cluster0",
       "db": "reproducer",
       "coll": "tickets",
-      "fullDocument": "updateLookup",
-      "pipeline": [{ "$match": { "operationType": "insert" } }]
-    }
-  },
-  { "$replaceRoot": { "newRoot": "$fullDocument" } },
-  {
-    "$hoppingWindow": {
-      "interval": { "size": 10, "unit": "minute" },
-      "hopSize": { "size": 1, "unit": "minute" },
-      "pipeline": [
-        {
-          "$group": {
-            "_id": { "repo": "$repo", "engine": "$environment.engine", "locale": "$environment.locale" },
-            "count": { "$sum": 1 },
-            "users": { "$addToSet": "$userLogin" },
-            "lastAt": { "$max": "$createdAt" }
+      "config": {
+        "pipeline": [
+          {
+            "$match": {
+              "operationType": "insert"
+            }
           }
-        }
-      ]
+        ]
+      }
     }
   },
-  { "$addFields": { "users": { "$size": "$users" } } },
-  { "$match": { "count": { "$gte": 3 } } },
+  {
+    "$replaceRoot": {
+      "newRoot": "$fullDocument"
+    }
+  },
+  {
+    "$project": {
+      "_id": {
+        "repo": "$repo",
+        "engine": "$environment.engine",
+        "locale": "$environment.locale"
+      },
+      "count": {
+        "$literal": 1
+      },
+      "users": {
+        "$literal": 1
+      },
+      "userSet": [
+        "$userLogin"
+      ],
+      "firstAt": "$createdAt",
+      "lastAt": "$createdAt"
+    }
+  },
   {
     "$merge": {
-      "into": { "connectionName": "cluster0", "db": "reproducer", "coll": "ticket_clusters" },
+      "into": {
+        "connectionName": "cluster0",
+        "db": "reproducer",
+        "coll": "ticket_clusters"
+      },
       "on": "_id",
-      "whenMatched": "replace",
+      "whenMatched": [
+        {
+          "$set": {
+            "count": {
+              "$add": [
+                "$count",
+                "$$new.count"
+              ]
+            },
+            "userSet": {
+              "$setUnion": [
+                "$userSet",
+                "$$new.userSet"
+              ]
+            },
+            "lastAt": {
+              "$max": [
+                "$lastAt",
+                "$$new.lastAt"
+              ]
+            }
+          }
+        },
+        {
+          "$set": {
+            "users": {
+              "$size": "$userSet"
+            }
+          }
+        }
+      ],
       "whenNotMatched": "insert"
     }
   }

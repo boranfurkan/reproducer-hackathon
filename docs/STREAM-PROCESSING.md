@@ -1,78 +1,127 @@
 # Atlas Stream Processing: shared-bug alerts
 
-Several reports from the same environment in a short time usually mean one bug, not several. A stream processor watches new tickets, counts them per environment in a sliding window, and writes an alert when the count passes a threshold. The dashboard shows the alerts under "Possible shared bugs".
+Several reports from the same environment usually mean one bug, not several. A stream processor watches new tickets and keeps one counter per repository, browser engine and locale; a counter that reaches three reports is shown on the dashboard under "Possible shared bug".
 
-## What the app already does
+**Status (25 October): created, run and verified on Atlas.** Workspace `reproducer` (London), connection `cluster0`, processor `ticketClusters` (tier SP10). Three demo tickets from one environment produced the alert 3 seconds later (count 3, three distinct reporters), and `GET /api/clusters` returned it. The processor is **stopped** to avoid billing while idle (there is no free tier): start it for the demo window, stop it right after.
 
-- Every investigation writes one document to `reproducer.tickets` as soon as the reporter's environment is known (`src/lib/events.ts`, shape `TicketDoc`): `runId`, `userLogin`, `repo`, `issueNumber`, `title`, `createdAt`, and `environment` (`engine`, `locale`, `timezoneId`, `mobile`).
-- `GET /api/clusters` reads `reproducer.ticket_clusters` (the collection the processor writes to) and the dashboard shows the latest five. Until the processor runs the collection is empty and the card is hidden.
-- `npm run db:setup` creates `tickets` and `ticket_clusters`.
+## Run it
 
-## What needs a human with Atlas access (about 10 minutes)
+```bash
+export STREAM_PROCESSING_URI='mongodb://USER:PASSWORD@atlas-stream-....a.query.mongodb.net/?tls=true&authSource=admin'   # from Atlas: workspace > Connect
+npx tsx scripts/stream/setup.ts            # create and start (replaces nothing: use --drop first if it exists)
+npx tsx scripts/stream/setup.ts --status   # state and stats
+npx tsx scripts/stream/setup.ts --stop     # stop (stops billing)
+npx tsx scripts/stream/setup.ts --drop     # delete
+npm run demo:cluster                       # three demo tickets from one environment: the alert appears in seconds
+npm run demo:cluster -- --clean            # remove the demo tickets and the alert
+```
 
-Stream Processing has **no free tier** and bills while a processor runs. Create it, start it only for the demo window, stop it right after. I could not do this part myself: managing workspaces needs Atlas API credentials (or the MongoDB MCP server with them), which this project does not have.
+Or in `mongosh` connected to the workspace: `sp.ticketClusters.start()` / `sp.ticketClusters.stop()`. The connection string contains the database user's password: keep it in the shell, never in the repository.
 
-1. In Atlas, open the project, then **Stream Processing** (left menu) and **Create workspace**. Choose the smallest tier (SP2 is enough for this), the same cloud provider and region as the cluster, and name it `reproducer`.
-2. In the workspace, **Connection Registry**, add a connection of type **Atlas Database**: pick the cluster, name the connection `cluster0`, role **readWriteAnyDatabase** (or a more limited role on the `reproducer` database).
-3. **Create processor** (or use `mongosh` against the workspace connection string) with the pipeline below. Name it `ticketClusters`.
-4. Use the processor's preview or `sp.ticketClusters.start()` to start it. Check `reproducer.ticket_clusters` after starting three investigations from the same environment within ten minutes.
-5. Stop it when you are done (`sp.ticketClusters.stop()`): a running processor keeps billing.
+## What the app does
 
-## Ready-made files
-
-- `scripts/stream/create-processor.js`: paste it into `mongosh` connected to the workspace; it creates the processor `ticketClusters` and starts it.
-- `scripts/stream/ticketClusters.json`: the same pipeline as plain JSON (for the Atlas UI "Create processor" JSON editor).
-- `npm run demo:cluster`: inserts three demo tickets from one environment (marked `demo: true`) so an alert appears within about a minute; `npm run demo:cluster -- --clean` removes them and the alert.
-- Verified without Atlas on 25 October: the grouping, the user count and the threshold produce exactly one alert for the three demo tickets, in the shape `GET /api/clusters` reads (`_id.repo/engine/locale`, `count`, `users`, `lastAt`), and the dashboard route returns it.
+- Every investigation writes one document to `reproducer.tickets` as soon as the reporter's environment is known (`src/lib/events.ts`, shape `TicketDoc`): `runId`, `userLogin`, `repo`, `issueNumber`, `title`, `createdAt`, `environment` (`engine`, `locale`, `timezoneId`, `mobile`).
+- The processor reads those inserts (change stream) and upserts `reproducer.ticket_clusters`: `_id` is `{ repo, engine, locale }`, with `count`, `users` (distinct reporters), `userSet`, `firstAt`, `lastAt`.
+- `GET /api/clusters` returns the counters with `count >= 3`, newest first; the dashboard shows them. `tickets` and `ticket_clusters` expire after 30 days (TTL).
+- The files: `scripts/stream/ticketClusters.json` (the pipeline), `scripts/stream/create-processor.js` (mongosh paste), `scripts/stream/setup.ts` (the commands above).
 
 ## The pipeline
 
 ```json
 [
-  { "$source": {
+  {
+    "$source": {
       "connectionName": "cluster0",
       "db": "reproducer",
       "coll": "tickets",
-      "fullDocument": "updateLookup",
-      "pipeline": [{ "$match": { "operationType": "insert" } }]
-  } },
-  { "$replaceRoot": { "newRoot": "$fullDocument" } },
-  { "$hoppingWindow": {
-      "interval": { "size": 10, "unit": "minute" },
-      "hopSize": { "size": 1, "unit": "minute" },
-      "pipeline": [
-        { "$group": {
-            "_id": { "repo": "$repo", "engine": "$environment.engine", "locale": "$environment.locale" },
-            "count": { "$sum": 1 },
-            "users": { "$addToSet": "$userLogin" },
-            "lastAt": { "$max": "$createdAt" }
-        } }
-      ]
-  } },
-  { "$addFields": { "users": { "$size": "$users" } } },
-  { "$match": { "count": { "$gte": 3 } } },
-  { "$merge": {
-      "into": { "connectionName": "cluster0", "db": "reproducer", "coll": "ticket_clusters" },
+      "config": {
+        "pipeline": [
+          {
+            "$match": {
+              "operationType": "insert"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": "$fullDocument"
+    }
+  },
+  {
+    "$project": {
+      "_id": {
+        "repo": "$repo",
+        "engine": "$environment.engine",
+        "locale": "$environment.locale"
+      },
+      "count": {
+        "$literal": 1
+      },
+      "users": {
+        "$literal": 1
+      },
+      "userSet": [
+        "$userLogin"
+      ],
+      "firstAt": "$createdAt",
+      "lastAt": "$createdAt"
+    }
+  },
+  {
+    "$merge": {
+      "into": {
+        "connectionName": "cluster0",
+        "db": "reproducer",
+        "coll": "ticket_clusters"
+      },
       "on": "_id",
-      "whenMatched": "replace",
+      "whenMatched": [
+        {
+          "$set": {
+            "count": {
+              "$add": [
+                "$count",
+                "$$new.count"
+              ]
+            },
+            "userSet": {
+              "$setUnion": [
+                "$userSet",
+                "$$new.userSet"
+              ]
+            },
+            "lastAt": {
+              "$max": [
+                "$lastAt",
+                "$$new.lastAt"
+              ]
+            }
+          }
+        },
+        {
+          "$set": {
+            "users": {
+              "$size": "$userSet"
+            }
+          }
+        }
+      ],
       "whenNotMatched": "insert"
-  } }
+    }
+  }
 ]
 ```
 
-In `mongosh` connected to the workspace:
+`$merge` with an update pipeline (`whenMatched: [...]`) bumps the counter in place: `count` adds one, `userSet` is the union of reporters, `lastAt` the latest time, `users` its size. The first ticket of an environment inserts the counter.
 
-```javascript
-sp.createStreamProcessor("ticketClusters", [ /* the stages above */ ])
-sp.ticketClusters.start()
-```
+## Why not a time window
 
-Each hop of the window emits the current counts, and `$merge` upserts them by the group key, so one alert per repo, engine and locale is kept up to date. The dashboard reads `count`, `users` and `lastAt`.
+The first version used `$hoppingWindow` (ten minutes, hopping every minute). It never produced output: a window closes only when the event-time watermark passes its end, and with a quiet source the watermark stalls (the stats showed the three inputs and `watermark` frozen at the last ticket). This Atlas version has no idle timeout on the change-stream source (the options `idleTimeout` in `$source` and `$source.config` are rejected). The counter version does not depend on the watermark, so an alert appears on the third ticket. The trade-off: a counter counts all tickets of that environment, not only those of the last ten minutes; `lastAt` is shown and old counters expire after 30 days.
 
-## Not verified
+## Things learned about this Atlas version
 
-The pipeline follows the patterns in the MongoDB Stream Processing skill (`skills/.agents/skills/mongodb-atlas-stream-processing`) but has **not been run on Atlas**. Things to check first if it fails: that `$addToSet` and `$max` are accepted inside the window (use `$push` or `$last` otherwise), that the connection role allows writing `ticket_clusters`, and that the workspace and the cluster are reachable from each other.
-
-## For the demo
-
-To show an alert without waiting, start three investigations from the same environment (for example the Turkish Z Flip notes on issue #1) within ten minutes, or insert three `tickets` documents by hand with the same `environment`.
+- Options of the change-stream `$source` such as the pushdown `pipeline` go under `config` (`$source.config.pipeline`), not directly in `$source`; `fullDocument` is rejected there (inserts carry the full document).
+- The workspace accepts the same commands as `mongosh`'s `sp` helper through the driver: `createStreamProcessor`, `startStreamProcessor`, `stopStreamProcessor`, `dropStreamProcessor`, `listStreamProcessors`, `getStreamProcessorStats`.
