@@ -322,7 +322,8 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
       focus = existing ?? { ...focus, name: `add-${slugOf(name, "found")}` };
     }
     const confirmed = observed.get(name) === false;
-    const steps = stepsOf.get(name);
+    // Steps an experiment wrote are adopted only if that variant failed with them: a probe-only experiment without assertions passes.
+    const steps = confirmed ? stepsOf.get(name) : undefined;
     d.say("concluded", `${hypothesis.rootCause}`, { reproduced: true, variant: name, focus: describeProfile(focus), change: describeChange(d.reporter, focus), file: hypothesis.file, explanation: hypothesis.explanation, evidence, confirmed });
     return { reproduced: true, confirmed, focus, hypothesis, evidence, missing, ...(steps ? { steps } : {}) };
   }
