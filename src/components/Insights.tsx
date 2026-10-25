@@ -31,7 +31,7 @@ function Body() {
   const maxFix = Math.max(1, ...byVariable.map((v) => v.fixes));
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div data-tour="insights" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Investigations" value={String(totals.runs)} sub={`${totals.fixed} with a verified fix`} />
         <Stat label="Tokens used" value={kilo(totals.tokens) || '0'} sub={totals.fixed ? `${kilo(totals.avgTokensPerFix)} per fix on average` : undefined} />
         <Stat label="Time to a fix" value={totals.fixed ? formatDuration(totals.avgSecondsPerFix * 1000) : '–'} sub="average, start to verified" />

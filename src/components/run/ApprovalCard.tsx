@@ -91,7 +91,7 @@ export default function ApprovalCard({ run, similar, onChange }: { run: RunView;
   const [owner, repoName] = run.repo.split('/');
 
   return (
-    <section aria-labelledby="approval-title" className="overflow-hidden rounded-lg border border-hot bg-purple-900 shadow-[0_0_0_4px_rgba(255,121,198,0.08),0_24px_60px_-20px_rgba(255,121,198,0.25)]">
+    <section aria-labelledby="approval-title" data-tour="approval" className="overflow-hidden rounded-lg border border-hot bg-purple-900 shadow-[0_0_0_4px_rgba(255,121,198,0.08),0_24px_60px_-20px_rgba(255,121,198,0.25)]">
       <div className="flex flex-col gap-[22px] p-[clamp(18px,3vw,28px)]">
         <div className="flex flex-col gap-2">
           <span className="self-start"><StatusChip tone="waiting">Waiting for you</StatusChip></span>

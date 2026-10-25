@@ -22,6 +22,8 @@ interface Entry {
   list?: { title: string; sub: string }[];
   matrix?: { rows: MatrixRow[]; after: boolean; experiment?: boolean };
   out?: { text: string; tone: 'fail' | 'pass' };
+  /** A mark for the demo tour (data-tour). */
+  tour?: string;
 }
 
 const secs = (ms: number) => `${Math.round(ms / 1000)}s`;
@@ -69,7 +71,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         break;
       case 'memory': {
         const hits = Array.isArray(e.data) ? (e.data as { title: string; file: string; isolatedVariable: string }[]) : [];
-        out.push({ ...base, who: 'agent', label: 'Memory', summary: hits.length ? 'Seen something similar before.' : line, list: hits.map((h) => ({ title: h.title, sub: `isolated by ${h.isolatedVariable}, ${h.file}` })) });
+        out.push({ ...base, tour: 'memory', who: 'agent', label: 'Memory', summary: hits.length ? 'Seen something similar before.' : line, list: hits.map((h) => ({ title: h.title, sub: `isolated by ${h.isolatedVariable}, ${h.file}` })) });
         break;
       }
       case 'matrix': {
@@ -78,6 +80,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         const round2 = line.startsWith('Matrix round 2');
         out.push({
           ...base,
+          tour: after ? 'matrix-after' : round2 ? 'matrix-2' : 'matrix',
           who: 'agent',
           label: after ? 'Matrix after the fix' : round2 ? 'Replay matrix, round 2' : 'Replay matrix',
           summary: after ? 'The same replay again, with the fix applied.' : round2 ? 'The replay again, with what the investigation found.' : `The same replay under ${rows.length} profiles, in every engine.`,
@@ -88,11 +91,12 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       case 'notes': {
         const d = e.data as { saved?: boolean; runs?: { at: string; outcome: string; mode: string; minutes: number; summary: string }[] } | undefined;
         if (d?.saved) {
-          out.push({ ...base, who: 'agent', label: 'Notes for the next run', summary: line.replace(/^Saved what this run tried for the next run of #\d+:\s*/, 'Saved in MongoDB, so the next run of this issue starts from here: ') });
+          out.push({ ...base, tour: 'notes-saved', who: 'agent', label: 'Notes for the next run', summary: line.replace(/^Saved what this run tried for the next run of #\d+:\s*/, 'Saved in MongoDB, so the next run of this issue starts from here: ') });
         } else {
           const outcome: Record<string, string> = { not_reproduced: 'not reproduced', no_fix: 'no verified fix', stopped: 'stopped', failed: 'failed' };
           out.push({
             ...base,
+            tour: 'notes-earlier',
             who: 'agent',
             label: 'Notes from earlier runs',
             summary: 'Earlier runs of this issue ended without a fix. Starting from what they tried, so nothing is repeated.',
@@ -106,7 +110,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         break;
       case 'test_written': {
         const red = /red as required/.test(e.summary);
-        out.push({ ...base, who: 'agent', label: 'Test fails before the fix', summary: red ? 'The new test fails on the reporter profile, as it should.' : line, ...(typeof e.data === 'string' && e.data.trim() ? { out: { text: e.data.trim(), tone: 'fail' as const } } : {}) });
+        out.push({ ...base, tour: 'red', who: 'agent', label: 'Test fails before the fix', summary: red ? 'The new test fails on the reporter profile, as it should.' : line, ...(typeof e.data === 'string' && e.data.trim() ? { out: { text: e.data.trim(), tone: 'fail' as const } } : {}) });
         break;
       }
       case 'fix_attempt':
@@ -116,7 +120,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       case 'green': {
         const last = [...out].reverse().find((x) => x.matrix)?.matrix?.rows ?? [];
         const c = matrixCounts(last, (r) => !(run.otherProblems ?? []).some((o) => o.profile === r.name));
-        out.push({ ...base, who: 'agent', label: 'Tests pass', summary: 'The new test passes, the existing tests pass, the matrix is green.', pose: 'found', tone: 'pass', ...(c.total ? { out: { text: `✔ tests pass   matrix ${c.passed} of ${c.total}`, tone: 'pass' as const } } : {}) });
+        out.push({ ...base, tour: 'green', who: 'agent', label: 'Tests pass', summary: 'The new test passes, the existing tests pass, the matrix is green.', pose: 'found', tone: 'pass', ...(c.total ? { out: { text: `✔ tests pass   matrix ${c.passed} of ${c.total}`, tone: 'pass' as const } } : {}) });
         break;
       }
       case 'revision':
@@ -124,7 +128,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         break;
       case 'explained': {
         const d = e.data as { sources?: { title: string; url: string }[]; proof?: { code: string; output: string } } | undefined;
-        out.push({ ...base, who: 'agent', label: 'Why this happens', summary: line, sources: d?.sources, proof: d?.proof });
+        out.push({ ...base, tour: 'explained', who: 'agent', label: 'Why this happens', summary: line, sources: d?.sources, proof: d?.proof });
         break;
       }
       case 'pr_update':
@@ -133,7 +137,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
       case 'deep_step': {
         const tool = (e.data as { tool?: string } | undefined)?.tool;
         const label = tool === 'note' ? 'Argon' : tool === 'read' ? 'Read' : tool === 'search' ? 'Search' : tool === 'git' ? 'Git' : tool === 'web' ? 'Web' : 'Investigation';
-        out.push({ ...base, who: 'note', label, summary: e.summary });
+        out.push({ ...base, ...(e.summary.startsWith('Context:') ? { tour: 'context' } : {}), who: 'note', label, summary: e.summary });
         break;
       }
       case 'experiment': {
@@ -141,6 +145,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         const rows = d?.rows ?? [];
         out.push({
           ...base,
+          tour: 'experiment',
           who: 'agent',
           label: line.split(':')[0],
           summary: line.slice(line.indexOf(':') + 1).trim(),
@@ -154,6 +159,7 @@ export function buildEntries(run: RunView, events: TimelineEvent[], user: Sessio
         const d = e.data as { reproduced?: boolean; change?: string; file?: string; explanation?: string; evidence?: string[] } | undefined;
         out.push({
           ...base,
+          tour: 'concluded',
           who: 'agent',
           label: d?.reproduced ? 'Investigation concluded' : 'Could not reproduce',
           summary: d?.explanation ? `${line} ${d.explanation}` : line,
@@ -198,7 +204,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
       {entries.map((e) => {
         if (e.who === 'note') {
           return (
-            <li key={e.id} className="relative flex items-start gap-3.5 pl-[7px]">
+            <li key={e.id} data-tour={e.tour} className="relative flex items-start gap-3.5 pl-[7px]">
               <span className="relative z-[1] mt-1.5 flex w-[18px] justify-center"><span className="size-1.5 bg-purple-700" /></span>
               <div className="min-w-0 flex-1 py-0.5 font-mono text-xs text-subtle">
                 <span className="text-faint">{e.label} · {e.t}</span> {e.summary.length > 200 ? `${e.summary.slice(0, 200)}…` : e.summary}
@@ -213,7 +219,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
         const tone = e.who === 'you' ? null : cardTone[live ? 'live' : (e.tone ?? 'default')];
         const pose: Pose | undefined = live ? 'investigating' : e.pose;
         return (
-          <li key={e.id} className="relative flex items-start gap-3.5">
+          <li key={e.id} data-tour={e.tour} className="relative flex items-start gap-3.5">
             <span className="relative z-[1] flex w-8 flex-none justify-center">
               {/* Only the step being worked on moves; finished steps keep their pose still. */}
               {e.who === 'you' ? <UserTile letters={initials(user.name, user.login)} size={32} /> : pose ? <span className="-mx-2.5 -mt-2.5 block"><Mascot pose={pose} size={52} label="" still={!live} /></span> : <Mascot avatar size={32} label="" still />}

@@ -27,7 +27,7 @@ function Issues({ owner, name }: { owner: string; name: string }) {
       {error && <ErrorNote message={error} />}
       {issues === null && !error && <IssueRowsSkeleton />}
       {issues && issues.length > 0 && (
-        <ul className="flex flex-col gap-3">
+        <ul data-tour="tickets" className="flex flex-col gap-3">
           {issues.map((i) => (
             <li key={i.number}>
               {/* A ticket: a stub with the number, a perforated edge with punched notches, the report on the right. */}
@@ -45,7 +45,7 @@ function Issues({ owner, name }: { owner: string; name: string }) {
                   <span className="line-clamp-2 text-sm text-muted">{i.body}</span>
                   <span className="font-mono text-xs text-subtle">{ago(i.createdAt)} · {i.comments} comment{i.comments === 1 ? '' : 's'}</span>
                   {(triage[i.number]?.environmentSpecific || triage[i.number]?.similar) && (
-                    <span className="mt-0.5 flex flex-wrap gap-1.5 font-mono text-[11px] font-medium">
+                    <span data-tour="triage" className="mt-0.5 flex flex-wrap gap-1.5 font-mono text-[11px] font-medium">
                       {triage[i.number].environmentSpecific && <span className="rounded-sm bg-amber/12 px-2 py-0.5 text-amber">likely environment-specific{triage[i.number].hint ? ` · ${triage[i.number].hint}` : ''}</span>}
                       {triage[i.number].similar && <span className="rounded-sm bg-pass/12 px-2 py-0.5 text-pass">looks like {triage[i.number].similar!.issue}, fixed{triage[i.number].similar!.outcome === 'merged' ? ' and merged' : ''}</span>}
                     </span>

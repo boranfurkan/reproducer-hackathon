@@ -80,13 +80,13 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
           <h1 className="font-mono text-[clamp(22px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em]">Investigate <span className="text-hot">#{number}</span></h1>
         </div>
         {warm === 'warming' && (
-          <div role="status" className="flex items-center gap-2.5 rounded-md border border-cyan/25 bg-cyan/8 px-3 py-2 font-mono text-xs font-medium text-cyan">
+          <div role="status" data-tour="sandbox" className="flex items-center gap-2.5 rounded-md border border-cyan/25 bg-cyan/8 px-3 py-2 font-mono text-xs font-medium text-cyan">
             <PixelDots />
             Sandbox warming up · installing Playwright, about 2 min
           </div>
         )}
         {warm === 'warm' && (
-          <div role="status" className="flex items-center gap-2 rounded-md border border-pass/25 bg-pass/8 px-3 py-2 font-mono text-xs font-medium text-pass">
+          <div role="status" data-tour="sandbox" className="flex items-center gap-2 rounded-md border border-pass/25 bg-pass/8 px-3 py-2 font-mono text-xs font-medium text-pass">
             <span className="size-1.5 bg-pass" aria-hidden="true" />
             Sandbox ready
           </div>
@@ -108,7 +108,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
         </Panel>
 
         <div className="flex min-w-0 flex-[1.2_1_420px] flex-col gap-[22px]">
-          <label className="flex flex-col gap-2">
+          <label data-tour="who" className="flex flex-col gap-2">
             <span className="font-mono text-sm font-semibold">Who hit the bug?</span>
             <span className="text-[13px] text-subtle">Device, browser, language, location: whatever the report leaves out. The agent rebuilds this environment.</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={EXAMPLES[0]} className={`${field} resize-y border-purple-700 p-3 text-[15px] leading-normal`} />
@@ -145,7 +145,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             )}
           </label>
 
-          <div className="flex flex-col gap-2">
+          <div data-tour="recording" className="flex flex-col gap-2">
             <span className="font-mono text-sm font-semibold">Screen recording or screenshot <span className="font-normal text-subtle">(optional)</span></span>
             <span className="text-[13px] text-subtle">The customer&apos;s recording of the bug. The agent watches it for the steps and for clues about their device and language.</span>
             <div
@@ -174,7 +174,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             )}
           </div>
 
-          <label className="flex flex-col gap-2">
+          <label data-tour="env" className="flex flex-col gap-2">
             <span className="flex flex-wrap items-center gap-2.5">
               <span className="font-mono text-sm font-semibold">Environment variables <span className="font-normal text-subtle">(optional)</span></span>
               <span className="rounded-sm bg-pass/10 px-[7px] py-0.5 font-mono text-[11px] font-medium tracking-[0.06em] text-pass">SANDBOX ONLY</span>
@@ -186,7 +186,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             </span>
           </label>
 
-          <fieldset className="flex flex-col gap-2">
+          <fieldset data-tour="depth" className="flex flex-col gap-2">
             <legend className="mb-2 font-mono text-sm font-semibold">How deep</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {[
@@ -206,7 +206,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
 
           {error && <ErrorNote message={error} />}
           <div className="flex flex-wrap items-center gap-4 pt-1">
-            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : <><IconSearch size={18} />Investigate</>}</button>
+            <button data-tour="investigate" onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : <><IconSearch size={18} />Investigate</>}</button>
             <span className="max-w-[340px] text-[13px] text-subtle">{deep ? 'A deep run can take half an hour; the page shows every step live.' : 'A quick run takes a few minutes.'} Nothing is pushed to GitHub until you approve.</span>
           </div>
         </div>

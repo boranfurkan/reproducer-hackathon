@@ -119,7 +119,7 @@ function Dashboard() {
         </label>
         {error && <ErrorNote message={error} />}
         {repos === null && !error && <RepoRowsSkeleton />}
-        <ul className="flex flex-col gap-2">
+        <ul data-tour="repos" className="flex flex-col gap-2">
           {shown.map((r) => (
             <li key={r.fullName}>
               <Link href={`/repos/${r.owner}/${r.name}`} onMouseEnter={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} onFocus={() => !r.isPrivate && r.openIssues > 0 && prewarm(r.owner, r.name)} className="flex items-center gap-4 rounded-lg border border-purple-800 bg-purple-900 px-[18px] py-4 text-foreground no-underline transition-colors hover:border-purple-500 hover:bg-lift">
@@ -145,14 +145,14 @@ function Dashboard() {
 
       <aside className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
         {clusters.map((c, i) => (
-          <section key={i} className="flex flex-col gap-2 rounded-lg border border-amber/35 bg-amber/6 px-[18px] py-4">
+          <section key={i} data-tour="clusters" className="flex flex-col gap-2 rounded-lg border border-amber/35 bg-amber/6 px-[18px] py-4">
             <h2 className="font-mono text-[13px] font-semibold tracking-[0.04em] text-amber">POSSIBLE SHARED BUG</h2>
             <p className="text-sm"><b>{c.count} reports</b> from {c.engine} / {c.locale} in {c.repo?.split('/')[1] ?? c.repo}</p>
             <p className="font-mono text-xs text-muted">{c.users} reporter{c.users === 1 ? '' : 's'}, latest {ago(c.lastAt)}</p>
           </section>
         ))}
 
-        <section className="flex flex-col gap-2.5">
+        <section data-tour="runs" className="flex flex-col gap-2.5">
           <Eyebrow>Recent investigations</Eyebrow>
           {runs === null && <RunCardsSkeleton />}
           {runs?.length === 0 && (
@@ -173,9 +173,9 @@ function Dashboard() {
           ))}
         </section>
 
-        <AskMemory />
+        <div data-tour="ask"><AskMemory /></div>
         {memory === undefined && <LearnedSkeleton />}
-        {memory && memory.total > 0 && <LearnedPanel memory={memory} />}
+        {memory && memory.total > 0 && <div data-tour="learned"><LearnedPanel memory={memory} /></div>}
       </aside>
     </div>
   );

@@ -148,7 +148,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2.5">
+      <div data-tour="run-header" className="flex flex-col gap-2.5">
         <BackLink href={`/repos/${owner}/${repo}`}>{run.repo}</BackLink>
         <h1 className="font-mono text-[clamp(20px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em] text-balance"><span className="text-hot">#{run.issueNumber}</span> {run.title}</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
@@ -176,7 +176,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
           {waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
           {run.status === 'fixed' && (run.prUrl || run.rejectedAt) && !waiting && <ApprovalCard run={run} similar={similar} onChange={reload} />}
           {run.prUrl && <RevisionPanel run={run} onChange={reload} />}
-          {running && <NowPanel run={run} events={events} />}
+          {running && <div data-tour="now"><NowPanel run={run} events={events} /></div>}
           {done && run.status !== 'fixed' && <StoppedPanel run={run} owner={owner} repo={repo} />}
           {run.status === 'not_reproduced' && <ReplyDraft run={run} onChange={reload} />}
           {run.otherProblems && run.otherProblems.length > 0 && (
