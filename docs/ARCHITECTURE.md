@@ -30,8 +30,14 @@ Long model calls use `background=True` on the Interactions API, so the orchestra
 |---|---|
 | `GET /api/auth/login`, `GET /api/auth/callback/github`, `POST /api/auth/logout`, `GET /api/session` | GitHub OAuth and the encrypted session |
 | `GET /api/repos`, `GET /api/repos/[owner]/[name]/issues` | the user's repositories and a repo's open issues |
-| `POST /api/runs`, `GET /api/runs` | start an investigation (returns 202 with the run id; it continues in the background of the server process; at most 2 running and 12 per hour per user), list the user's recent runs |
-| `GET /api/runs/[id]` | the run, its events in order (the page polls this) and similar past fixes (voyage-code-4) for the approval card; a run still "running" after 40 minutes is marked interrupted |
+| `POST /api/runs`, `GET /api/runs` | start an investigation, deep or quick (returns 202 with the run id; it continues in the background of the server process; at most 3 running and 12 per hour per user), list the user's recent runs (pull request state refreshed) |
+| `GET /api/runs/[id]` | the run, its events in order and similar past fixes (voyage-code-4) for the approval card; refreshes the pull request state; a run still "running" after 40 minutes is marked interrupted |
+| `GET /api/runs/[id]/stream` | server-sent events from a MongoDB change stream on the run, its events and its pull request history (the page reloads on each) |
+| `POST /api/runs/[id]/stop` | asks a running investigation to stop after the step it is in |
+| `POST /api/runs/[id]/revision` | revise the pull request from reviewer comments (`start`), push the verified revision (`push`), or `discard` it |
+| `POST /api/runs/[id]/reply` | draft a reply to the reporter of a bug that could not be reproduced, or post it on the issue |
+| `GET /api/repos/[owner]/[name]/triage` | badges for the issue list (environment-specific, looks like a fixed bug) |
+| `POST /api/ask`, `GET /api/insights` | "Ask the memory" (function calling over MongoDB) and the Insights aggregations |
 | `POST /api/runs/[id]/approve` | the approval gate: claims the run, opens the pull request, writes `approvals` and a `pr_opened` event |
 | `POST /api/runs/[id]/reject` | records a rejection; nothing is pushed |
 | `POST /api/uploads` | a screen recording or screenshot (multipart, 50 MB) goes to the Gemini Files API; returns a reference for the ticket |
@@ -51,10 +57,11 @@ Every run route checks that the run belongs to the signed-in user. Pages: `/`, `
 - `types.ts`: environment profile, sandbox interface, run events.
 - `gemini.ts`: client, retry on 429/503, token budget per run.
 - `redact.ts`, `mongo.ts`, `events.ts`: secret redaction, shared MongoDB client, run and event recording.
-- `agent/`: `argon.ts` (JSON output), `schemas.ts`, `profiles.ts` (baseline and ablations), `repo.ts` (repo digest from GitHub), `investigate.ts` (the loop).
+- `agent/`: `argon.ts` (JSON output, streaming, conversation state), `schemas.ts`, `profiles.ts` (baseline, ablations, stressors, overrides), `repo.ts` (file tree, on-demand reads and git history from GitHub), `investigate.ts` (the loop), `deep.ts` (the deep investigation's tool loop), `verify.ts` (red test, fix, green tests, matrix), `explain.ts` (why the platform behaves so, with search and code execution), `ask.ts`, `triage.ts`, `reply.ts`, `pr.ts`.
+- `harness/conditions.ts`: page translation, content blocker, removed APIs and slow network, shared by the matrix and the generated tests.
+- `prtrack.ts`, `revise.ts`, `insights.ts`, `schema.ts`: pull request tracking, revisions, Insights aggregations, MongoDB validators and TTL.
 - `harness/scripts.ts`: scripts that run inside the sandbox.
 - `sandbox/antigravity.ts`: the sandbox implementation.
-- Still to build: `github.ts` (PR creation), approval handling, search and memory queries.
 See [STATUS.md](STATUS.md) for the full layout and how to run it.
 
 ### Sandbox
