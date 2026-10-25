@@ -2,11 +2,14 @@
 // Everything heavy lives under /opt: every byte under /workspace adds time to EVERY sandbox call (about 40 ms per MB),
 // while /opt costs nothing. The price is that /opt is wiped after 15 idle minutes, so keep the environment warm.
 import type { SandboxFile } from "../types";
+import { MATRIX_CONDITIONS } from "./conditions";
 
 const MATRIX_JS = String.raw`const pw = require("playwright");
 const fs = require("fs");
 const job = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const T = 3500;
+// Conditions shared with the generated tests (src/lib/harness/conditions.ts).
+const CONDITIONS = ${JSON.stringify(MATRIX_CONDITIONS)};
 
 async function runStep(page, s) {
   switch (s.action) {
@@ -16,6 +19,7 @@ async function runStep(page, s) {
     case "press": return page.keyboard.press(s.key);
     case "wait": return page.waitForTimeout(Math.min(s.ms || 500, 3000));
     case "expect_visible": return page.locator(s.selector).first().waitFor({ state: "visible", timeout: T });
+    case "expect_hidden": return page.locator(s.selector).first().waitFor({ state: "hidden", timeout: T });
     case "expect_text": {
       const rx = /^\/(.*)\/([a-z]*)$/.exec(s.text || "");
       return page.locator(s.selector || "body").filter({ hasText: rx ? new RegExp(rx[1], rx[2]) : s.text }).first().waitFor({ state: "visible", timeout: T });
@@ -37,6 +41,15 @@ async function runProfile(browser, p) {
     if (p.userAgent) o.userAgent = p.userAgent;
     if (p.reducedMotion) o.reducedMotion = "reduce";
     ctx = await browser.newContext(o);
+    // Conditions beyond the context options: what only some visitors have (translation, a content blocker, an older browser, a slow connection).
+    if (p.translated) await ctx.addInitScript(CONDITIONS.translate);
+    if (p.adBlock) {
+      await ctx.addInitScript(CONDITIONS.adBlockInit);
+      const blocked = new RegExp(CONDITIONS.adBlockPattern, "i");
+      await ctx.route("**/*", (route) => (blocked.test(route.request().url()) ? route.abort("blockedbyclient") : route.continue()));
+    }
+    if (p.removeApisScript) await ctx.addInitScript(p.removeApisScript);
+    if (p.latencyMs) await ctx.route("**/*", async (route) => { if (route.request().resourceType() !== "document") await new Promise((r) => setTimeout(r, p.latencyMs)); await route.continue(); });
     if (p.storageBlocked) {
       await ctx.addInitScript(() => {
         const thrower = () => { throw new DOMException("The operation is insecure.", "SecurityError"); };

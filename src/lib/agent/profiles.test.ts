@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EnvProfile } from "../types";
-import { BASELINE, ablations, baselineProfile, canonicalVariable, splitByIssue, stressorProfiles } from "./profiles";
+import { BASELINE, ablations, baselineProfile, canonicalVariable, describeChange, splitByIssue, stressorProfiles } from "./profiles";
 
 const reporter: EnvProfile = {
   name: "reporter", engine: "webkit", locale: "tr-TR", timezoneId: "Europe/Istanbul", viewport: { width: 390, height: 844 },
@@ -85,4 +85,30 @@ test("the isolating variable gets one canonical name whatever the model called i
   assert.equal(canonicalVariable(reporter, { ...reporter, engine: "chromium" }), "engine");
   assert.equal(canonicalVariable(reporter, { ...reporter, colorScheme: "dark" }), "colorScheme");
   assert.equal(canonicalVariable(reporter, { ...reporter, reducedMotion: true }), "reducedMotion");
+});
+
+test("the new conditions can be added by a stressor, are validated, and are named canonically", () => {
+  const reporter = { ...BASELINE, name: "reporter", notEmulated: [] } as EnvProfile;
+  const out = stressorProfiles(
+    reporter,
+    [
+      { name: "Chrome translate", why: "x", override: { translated: true } },
+      { name: "uBlock", why: "x", override: { adBlock: true } },
+      { name: "old iPhone", why: "x", override: { engine: "webkit", removeApis: ["crypto.randomUUID", "not.an.api"] } },
+      { name: "slow", why: "x", override: { latencyMs: 99999 } },
+      { name: "nothing", why: "x", override: {} },
+    ],
+    5,
+  );
+  assert.equal(out.length, 4);
+  assert.equal(out[0].translated, true);
+  assert.equal(out[1].adBlock, true);
+  assert.deepEqual(out[2].removeApis, ["crypto.randomUUID"]);
+  assert.equal(out[3].latencyMs, 3000, "the delay is capped");
+  assert.equal(canonicalVariable(reporter, out[0]), "translation");
+  assert.equal(canonicalVariable(reporter, out[1]), "adBlock");
+  assert.equal(canonicalVariable(reporter, { ...reporter, removeApis: ["Array.prototype.at"] }), "olderBrowser");
+  assert.equal(canonicalVariable(reporter, out[3]), "network");
+  assert.match(describeChange(reporter, out[0]), /page translated/);
+  assert.ok(ablations({ ...reporter, translated: true, adBlock: true }).map((a) => a.variable).includes("translation"));
 });

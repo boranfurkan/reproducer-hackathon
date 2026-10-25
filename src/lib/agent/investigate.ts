@@ -8,6 +8,7 @@ import { AntigravitySandbox } from "../sandbox/antigravity";
 import type { CallTiming, EnvProfile, RunEventType, SandboxFile } from "../types";
 import { askJson } from "./argon";
 import { ablations, baselineProfile, canonicalVariable, describeChange, describeProfile, rowKind, splitByIssue, stressorProfiles } from "./profiles";
+import { conditionHook, removeApisScript } from "../harness/conditions";
 import { explainRootCause, type Explainer } from "./explain";
 import { formatDigest, readRepoDigest, type RepoRef } from "./repo";
 import { TEST_PATH, between, count, formatMatrix, parseMatrix, verifyFix, type ProfileResult } from "./verify";
@@ -70,6 +71,9 @@ export interface InvestigationResult {
 const SYSTEM =
   "You are ReProducer, a senior engineer who reproduces bugs that only happen in the reporter's environment " +
   "(browser engine, locale, timezone, device, storage). Be precise. Never invent files or selectors that are not in the code you are given.";
+
+/** The sandbox applies a profile's removed APIs from a ready-made script (the list of removable APIs lives here, not there). */
+export const withInitScripts = (p: EnvProfile) => (p.removeApis?.length ? { ...p, removeApisScript: removeApisScript(p.removeApis) } : p);
 
 export async function investigate(
   ticket: Ticket,
@@ -136,9 +140,16 @@ export async function investigate(
         ? `Known device profiles that may match the notes (best match first). When one fits, use its engine, viewport, deviceScaleFactor, isMobile, hasTouch and notEmulated exactly; ignore any that do not fit:\n${JSON.stringify(knownDevices)}\n`
         : "") +
       "suspectedVariables: environment variables that could plausibly matter. " +
-      "stressors: up to 3 extra conditions that the report does NOT state but that could plausibly explain why only some users are affected " +
-      "(for example storage blocked in private or in-app browsers, a different timezone or locale, dark mode, reduced motion). " +
-      "Each is tried on top of the reporter's profile, so only use values that differ from it. Use IANA timezones and BCP 47 locales.",
+      "stressors: up to 5 extra conditions that the report does NOT state but that could plausibly explain why only some users are affected. " +
+      "You can add these to the reporter's profile (each in override): " +
+      "translated (the browser translated the page, as Chrome does for visitors whose language differs from the site's), " +
+      "adBlock (a content blocker blocks trackers and analytics scripts and hides ad-like elements), " +
+      "removeApis (an older browser that lacks APIs, for example crypto.randomUUID, structuredClone, Array.prototype.at, Object.hasOwn, String.prototype.replaceAll on iOS before 15.4; use it with engine webkit for old iPhones), " +
+      "reducedMotion (the visitor asked their system for less motion), colorScheme dark, storageBlocked (private or in-app browsers), " +
+      "latencyMs (a slow connection), a different timezone (especially a zone that observes daylight saving time: a bug may only exist on or near the day the clocks change) or locale (decimal comma, right-to-left, Turkish casing). " +
+      "Pick the ones that best fit THIS report and this kind of app; think about what a small group of real visitors has that the developer does not. " +
+      "Each is tried on top of the reporter's profile, so only use values that differ from it. Use IANA timezones and BCP 47 locales. " +
+      "If the reporter's own device or browser version implies missing APIs (an old iPhone), set removeApis on the reporter profile itself.",
   });
   const digestP = readRepoDigest(ticket.repo, opts.githubToken).then(formatDigest);
   const bootP = sandbox
@@ -164,7 +175,7 @@ export async function investigate(
       prompt:
         `Repository source:\n\n${code}\n\nBug report:\n${issueText}\n\nInterpretation: ${understanding.summary}\n${understanding.mediaObservations ? `What the reporter's recording shows: ${understanding.mediaObservations}\n` : ""}Expected: ${understanding.expected}\nActual: ${understanding.actual}\n\n` +
         "Write a replay plan for a headless browser that reaches the place where the bug shows and ends with assertions that describe the CORRECT behaviour, so the plan fails when the bug is present. " +
-        "Actions: goto (url relative to the site root, hash routes allowed), click, fill, press, wait, expect_visible, expect_text, expect_count_min. " +
+        "Actions: goto (url relative to the site root, hash routes allowed), click, fill, press, wait, expect_visible, expect_hidden, expect_text, expect_count_min. A bug can be a white page, a frozen page or a missing item: end with assertions that the page is still alive (expect_visible of a stable element) or that something that should be gone is hidden or something that should be listed is present. " +
         "Use selectors that exist in the source (prefer data-testid). Keep it short. Always fill successCriterion with one sentence saying what the final assertions check. " +
         "The same plan is replayed under many locales, timezones and devices, so every assertion must hold in ALL of them when the app is correct: " +
         "never rely on words, month names or date formats of one language. expect_text accepts a regular expression written as /pattern/ (for example /\\b5\\b/ to check that a day number is 5); prefer that for dates, numbers and prices.",
@@ -178,13 +189,13 @@ export async function investigate(
 
   // 2. Matrix: the reporter, a neutral baseline, the reporter with one variable reset at a time (is the cause something it already has?),
   //    and the reporter with one extra condition added (is the cause something the report never mentioned?).
-  const stress = stressorProfiles(reporter, understanding.stressors ?? [], 3);
+  const stress = stressorProfiles(reporter, understanding.stressors ?? [], 5);
   const stressText = (understanding.stressors ?? []).map((x) => `${x.name} (${x.why})`).join("; ");
   if (stress.length) say("hypothesis", `Extra conditions to try on top of the reporter's profile: ${stressText}`, understanding.stressors);
   const profiles = [reporter, baselineProfile(reporter), ...ablations(reporter).map((a) => a.profile).slice(0, 4), ...stress].slice(0, LIMITS.maxProfilesPerRound);
   const byName = new Map(profiles.map((pr) => [pr.name, pr]));
   // Every profile is replayed in every installed engine (the matrix table has a column for each).
-  const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles, engines: ["chromium", "webkit"] }) };
+  const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan, profiles: profiles.map(withInitScripts), engines: ["chromium", "webkit"] }) };
   const enrich = (rows: ProfileResult[]): ProfileResult[] =>
     rows.map((r) => {
       const pr = byName.get(r.name);
@@ -295,7 +306,10 @@ export async function investigate(
           ? `Put test.use({ browserName: "${focus.engine}" }) once at the top level of the file, outside every describe: Playwright rejects browserName inside a describe. `
           : "Do not set browserName (the default is already chromium). ") +
         (focus.storageBlocked ? `Storage is blocked in the failing environment: inside the failing describe, include exactly this hook so localStorage and sessionStorage throw like they do there: ${storageSnippet} ` : "") +
-        "Use stable selectors from the source. Check each route: this app uses hash routes, so goto paths look like \"/#/category/fiction\".\n" +
+        (conditionHook(focus)
+          ? `The failing environment also has conditions that Playwright's context options cannot express (${[focus.translated && "page translated by the browser", focus.adBlock && "content blocker", focus.removeApis?.length && `older browser without ${focus.removeApis.join(", ")}`, focus.latencyMs && "slow network"].filter(Boolean).join("; ")}): inside the failing describe, include exactly this hook, unchanged, so the test reproduces them: ${conditionHook(focus)} `
+          : "") +
+        "Use stable selectors from the source. Check each URL against the server and the source (some apps use hash routes, some use paths). The test must assert that the page still works after the user's actions, so a white page or a frozen page fails it.\n" +
         "3. Fix the bug with the smallest change that keeps behaviour for other users. Return only the files you change (path relative to the repo root, full new content). Do not edit the test.";
     const retry = attempt > 1 && lastInteractionId;
     const p = await ask<Proposal>("Finding the root cause and the fix", {

@@ -16,6 +16,14 @@ export interface EnvProfile {
   colorScheme?: "light" | "dark";
   storageBlocked?: boolean;
   reducedMotion?: boolean;
+  /** The page was translated by the browser (Chrome Translate and the like): text nodes are replaced by <font> elements. */
+  translated?: boolean;
+  /** A content blocker is on: trackers and ad scripts are blocked, ad-like elements hidden. */
+  adBlock?: boolean;
+  /** APIs this (older) browser does not have, for example crypto.randomUUID on iOS 14. See harness/conditions.ts. */
+  removeApis?: string[];
+  /** A slow connection: every request that is not the page itself waits this many milliseconds. */
+  latencyMs?: number;
   /** What we could not emulate (GPU, OEM keyboard, real hinge...). Shown in the fidelity report. */
   notEmulated: string[];
 }

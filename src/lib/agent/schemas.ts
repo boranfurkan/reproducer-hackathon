@@ -1,6 +1,8 @@
 // Output shapes asked from Argon, as JSON schema plus matching TypeScript types.
 import type { EnvProfile } from "../types";
 
+import { REMOVABLE_APIS } from "../harness/conditions";
+
 export const envProfileSchema = {
   type: "object",
   properties: {
@@ -20,6 +22,10 @@ export const envProfileSchema = {
     colorScheme: { type: "string", enum: ["light", "dark"] },
     storageBlocked: { type: "boolean" },
     reducedMotion: { type: "boolean" },
+    translated: { type: "boolean", description: "the browser translated the page (Chrome Translate)" },
+    adBlock: { type: "boolean", description: "a content blocker is on" },
+    removeApis: { type: "array", items: { type: "string", enum: [...REMOVABLE_APIS] }, description: "APIs an older browser lacks" },
+    latencyMs: { type: "integer", description: "slow connection: delay per request in ms" },
     notEmulated: { type: "array", items: { type: "string" } },
   },
   required: ["name", "engine", "locale", "timezoneId", "viewport", "deviceScaleFactor", "isMobile", "hasTouch", "notEmulated"],
@@ -36,6 +42,10 @@ export interface Stressor {
     colorScheme?: string;
     storageBlocked?: boolean;
     reducedMotion?: boolean;
+    translated?: boolean;
+    adBlock?: boolean;
+    removeApis?: string[];
+    latencyMs?: number;
   };
 }
 
@@ -53,6 +63,10 @@ export const stressorSchema = {
         colorScheme: { type: "string", enum: ["light", "dark"] },
         storageBlocked: { type: "boolean" },
         reducedMotion: { type: "boolean" },
+        translated: { type: "boolean" },
+        adBlock: { type: "boolean" },
+        removeApis: { type: "array", items: { type: "string", enum: [...REMOVABLE_APIS] } },
+        latencyMs: { type: "integer" },
       },
     },
   },
@@ -87,7 +101,7 @@ export const understandingSchema = {
   required: ["summary", "expected", "actual", "suspectedVariables", "stressors", "mediaObservations", "mediaMoments", "profile"],
 };
 
-export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_text" | "expect_count_min";
+export type StepAction = "goto" | "click" | "fill" | "press" | "wait" | "expect_visible" | "expect_hidden" | "expect_text" | "expect_count_min";
 
 export interface ReplayStep {
   action: StepAction;
@@ -113,7 +127,7 @@ export const replayPlanSchema = {
       items: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["goto", "click", "fill", "press", "wait", "expect_visible", "expect_text", "expect_count_min"] },
+          action: { type: "string", enum: ["goto", "click", "fill", "press", "wait", "expect_visible", "expect_hidden", "expect_text", "expect_count_min"] },
           url: { type: "string" },
           selector: { type: "string" },
           value: { type: "string" },

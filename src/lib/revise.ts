@@ -8,6 +8,7 @@ import { collection, mongoClient } from "./mongo";
 import type { PrEventDoc } from "./prtrack";
 import { redact } from "./redact";
 import { askJson } from "./agent/argon";
+import { withInitScripts } from "./agent/investigate";
 import { type Revision, revisionSchema } from "./agent/schemas";
 import { TEST_PATH, formatMatrix, parseMatrix, verifyFix } from "./agent/verify";
 import { AntigravitySandbox } from "./sandbox/antigravity";
@@ -80,7 +81,7 @@ async function work(run: RunDoc, feedbackText: string): Promise<void> {
     const boot = await sandbox.runWith(harnessFiles(), `bash ${HARNESS_DIR}/boot.sh https://github.com/${run.repo}.git`, "boot");
     if (!boot.stdout.includes("BOOT_OK")) throw new Error(`Sandbox did not start: ${(boot.stdout + boot.stderr).slice(-300)}`);
     const replay = run.replay!;
-    const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan: replay.plan, profiles: replay.profiles, engines: replay.engines }) };
+    const job: SandboxFile = { path: `${HARNESS_DIR}/job.json`, content: JSON.stringify({ baseUrl: "http://localhost:3100", plan: replay.plan, profiles: replay.profiles.map(withInitScripts), engines: replay.engines }) };
     const required = new Set(replay.required);
 
     let interactionId = run.proposalInteractionId;
