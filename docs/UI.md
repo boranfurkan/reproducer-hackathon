@@ -82,4 +82,4 @@ Logged out; loading; error; empty (no repositories, issues or runs); run status 
 
 ## Reviewing a change
 
-`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished, a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 26 screenshots (9 pages and 4 loading states, desktop and phone; it seeds a run with an open pull request and a ready revision, and a not-reproduced run with a drafted reply) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.
+`npm run dev`, then `npm run ui:shots` in another terminal: it seeds a finished deep investigation (with reads, an experiment with probe values and a conclusion), a running and a could-not-reproduce investigation for a fake user, mocks the GitHub calls, saves 26 screenshots (9 pages and 4 loading states, desktop and phone; it seeds a run with an open pull request and a ready revision, and a not-reproduced run with a drafted reply) in `.ui-shots/`, and removes the seeded data. Before committing: `npm run typecheck`, `npx eslint src scripts`, `npm test`, `npm run build`.
