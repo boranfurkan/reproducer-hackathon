@@ -25,6 +25,18 @@ Verified by the owner on 24 Oct evening: GitHub login in the browser, an investi
 
 Not verified: the GitHub login screen itself (needs the owner);  the web upload form in a browser; the stream processor; `docker build`; the keep-alive timer; a long recording.
 
+## Deep runs on 25 October
+
+The kept run of each demo issue (latest verified fix, deep mode, through the web app; older and failed runs are in the `*_archive` collections). Every run: test red before the fix, green after, required matrix rows passing in Chromium and WebKit. Sandbox repairs: calls that found their environment reset and set it up again.
+
+| Issue | Result | Time | New tokens | Largest context | Deep rounds | Experiments | Fix attempts | Sandbox repairs |
+|---|---|---|---|---|---|---|---|---|
+| #8 | fixed, verified | 26 min | 2213k | 326k | 4 | 2 | 2 | 4 |
+| #9 | fixed, verified | 13 min | 824k | 172k | 2 | 1 | 1 | 2 |
+| #10 | fixed, verified | 20 min | 221k | 19k | 3 | 1 | 1 | 2 |
+| #11 | fixed, verified | 14 min | 294k | 27k | 4 | 1 | 1 | 3 |
+| #12 | fixed, verified | 16 min | 406k | 53k | 3 | 1 | 1 | 3 |
+
 ## How to run things
 
 ```bash
