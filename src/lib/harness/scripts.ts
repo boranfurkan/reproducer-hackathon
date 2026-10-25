@@ -25,9 +25,12 @@ async function runStep(page, s) {
       return page.locator(s.selector || "body").filter({ hasText: rx ? new RegExp(rx[1], rx[2]) : s.text }).first().waitFor({ state: "visible", timeout: T });
     }
     case "expect_count_min": {
+      // The expected count belongs in min; a model sometimes puts it in value, which must not silently become "at least 1".
+      const min = s.min || Number(s.value) || 1;
       const end = Date.now() + T;
-      while (Date.now() < end) { if ((await page.locator(s.selector).count()) >= (s.min || 1)) return; await page.waitForTimeout(150); }
-      throw new Error("count of " + s.selector + " stayed below " + (s.min || 1));
+      let n = 0;
+      while (Date.now() < end) { n = await page.locator(s.selector).count(); if (n >= min) return; await page.waitForTimeout(150); }
+      throw new Error("count of " + s.selector + " stayed at " + n + ", below " + min);
     }
     default: throw new Error("unknown action " + s.action);
   }

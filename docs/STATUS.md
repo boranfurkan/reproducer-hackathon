@@ -1,18 +1,18 @@
 # Status and handoff
 
-Read this first when picking the project up. It records where things stand, how to run them, what was learned, and what to do next. Last updated Saturday 24 October 2026, evening (London). Submission closes Sunday 25 October, 12:00 London time.
+Read this first when picking the project up. It records where things stand, how to run them, what was learned, and what to do next. Last updated Sunday 25 October 2026, early morning (London). Submission closes Sunday 25 October, 12:00 London time.
 
 ## What exists
 
 | Piece | State |
 |---|---|
 | App repo `boranfurkan/reproducer-hackathon` | Next.js 16.4.3, with the redesigned interface (24 Oct: purple theme, mascot Loupe; see UI.md and D-29). The investigation loop, and the product shell: GitHub login, repo and issue pickers, ticket form with notes, env vars and a recording or screenshot, live run page with timeline, approval card with similar past fixes, approve and reject routes, pull request creation, dashboard with memory facets and shared-bug alerts. Builds, typechecks, lints clean; 13 unit tests pass (`npm test`). The ticket form starts warming the sandbox in the background (`POST /api/warm`); `npm run demo:record` records the web app through an investigation. |
-| Demo repo `boranfurkan/reproducer-hackathon-demo` | "Pagefold Books" with four bugs pushed: issues #1 to #4, tags `v0-buggy` (bug 1 only), `v1-all-bugs` (three) and `v2-four-bugs` (all four). Bug 4 (search lower-cases with the Turkish locale) is a cousin of bug 1 so the memory has something to recall. |
-| Investigation loop | Fixed all four demo bugs end to end in clean sandbox runs on 24 Oct (#1 locale with a screen recording, #4 search with a memory recall of #1, #2 only the "storage blocked" stressor reproduces it, #3 timezone). About 4 to 5 minutes warm, 77k to 95k tokens, one fix attempt each; see DEMO-BUGS.md. The sandbox agent runs on Argon (D-26). |
+| Demo repo `boranfurkan/reproducer-hackathon-demo` | Rebuilt on 25 Oct as "Pagefold Books": five apps in five stacks (React 18.2, Vue 3.4, plain JS, Preact, Alpine.js) with vendored pinned framework files and no build step, and five bugs that code review does not find (issues #8 to #12, see DEMO-BUGS.md). The first four bugs (issues #1 to #4) are retired and closed. |
+| Investigation loop | Quick mode (matrix, proposal, verify) and deep mode (D-42: tool loop with experiments over app source, git history and framework source in one context). New environment conditions: page translation, content blocker, older browser, slow network (D-41). Results of the deep runs on the five new bugs: see "Deep runs on 25 October" below. |
 | Memory and search (MongoDB) | M10 cluster, six working indexes and collections. `bug_memory` with Automated Embedding (voyage-4 and voyage-code-4) and a lexical Atlas Search index, hybrid recall with `$rankFusion`, facets, a 10-device catalog with fuzzy Atlas Search. All verified with synthetic data; wired into the loop. |
 | Video and screenshots | Argon reads a recording through the Files API (tested standalone: 2 s upload, 8 s analysis). Upload route, form field and prompt are built and tested at the API level. |
 | Deployment | `output: "standalone"`, Dockerfile, `.dockerignore`, `docs/DEPLOY.md`. The standalone layout was started and tested by hand. `docker build` and a real host were not tried. |
-| Stream Processing | App side done (`tickets` written, `/api/clusters`, dashboard card). The processor itself needs someone with Atlas access: see `docs/STREAM-PROCESSING.md`. |
+| Stream Processing | Running on Atlas (workspace `reproducer`, processor `ticketClusters`, SP10), verified: three tickets from one environment produce an alert in seconds. Stop it after the presentation (`docs/STREAM-PROCESSING.md`). |
 | GitHub OAuth app | Created, credentials in `.env.local`. Callback `http://localhost:3000/api/auth/callback/github`; add the production callback when the host exists. |
 
 Nothing has been deployed. The pull request code has only run against a mock GitHub.
