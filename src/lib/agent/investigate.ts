@@ -339,7 +339,8 @@ export async function investigate(
     "Object.defineProperty(window, 'localStorage', { get: t }); Object.defineProperty(window, 'sessionStorage', { get: t }); }); });";
   // Have we seen something like this before? Hybrid search over the memory of past verified fixes; the hits are hints, not answers.
   const recallQuery = `${understanding.summary} Only affects: ${decisive.join(", ") || "unknown"}. Environment: ${focus.engine}, ${focus.locale}, ${focus.timezoneId}${focus.storageBlocked ? ", storage blocked" : ""}.`;
-  const past = await recallSimilar(recallQuery, 3, 0.76);
+  // The recall query shares the memory text's template, which lifts every score: measured, the same bug 0.89 to 0.92, unrelated ones up to 0.80.
+  const past = await recallSimilar(recallQuery, 3, 0.82);
   if (past.length) {
     say("memory", `Seen something similar before: ${past.map((h) => `${h.title} (${h.file}, isolated by ${h.isolatedVariable})`).join("; ")}`, past);
   } else {
