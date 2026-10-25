@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { IconArrowLeft } from './icons';
 import type { RunView } from '@/lib/client';
 
 // Shared atoms of the ReProducer design. Tokens live in src/styles/globals.css.
@@ -15,6 +17,16 @@ const sizes = { sm: 'px-3 py-1.5 text-[13px]', md: 'px-4 py-2.5 text-sm', lg: 'p
 
 /** Class names for a button, so the same look works on <button> and on links. */
 export const buttonClass = (variant: ButtonVariant = 'primary', size: keyof typeof sizes = 'md') => `${base} ${variants[variant]} ${sizes[size]}`;
+
+/** The way back to the page above, as a small button with an arrow. */
+export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={`${buttonClass('secondary', 'sm')} max-w-full self-start text-muted no-underline hover:text-foreground`}>
+      <IconArrowLeft size={14} />
+      <span className="truncate">{children}</span>
+    </Link>
+  );
+}
 
 /** A small label above a block: "ROOT CAUSE", "TIMELINE". */
 export function Eyebrow({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -81,13 +93,13 @@ export function ErrorNote({ message }: { message: string }) {
   );
 }
 
-/** Three pixels that fade, for "working" and "warming up". */
+/** Three pixels that light up in turn, for "working" and "warming up" (.rp-dot in globals.css; still for reduced motion). */
 export function PixelDots({ className = 'bg-cyan' }: { className?: string }) {
   return (
     <span className="flex gap-0.5" aria-hidden="true">
-      <span className={`size-1.5 ${className}`} />
-      <span className={`size-1.5 opacity-60 ${className}`} />
-      <span className={`size-1.5 opacity-30 ${className}`} />
+      <span className={`rp-dot size-1.5 ${className}`} />
+      <span className={`rp-dot size-1.5 ${className}`} />
+      <span className={`rp-dot size-1.5 ${className}`} />
     </span>
   );
 }

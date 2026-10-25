@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { IconRefresh, IconUpload, IconX } from '../icons';
 import { Busy } from '../loaders';
 import Mascot from '../mascot/Mascot';
 import { ErrorNote, Eyebrow, Panel, PixelDots, StatusChip, buttonClass } from '../ui';
@@ -80,8 +81,8 @@ export default function RevisionPanel({ run, onChange }: { run: RunView; onChang
           {error && <ErrorNote message={error} />}
         </div>
         <div className="flex flex-wrap items-center gap-3 border-t border-purple-700 bg-purple-850 px-5 py-4">
-          <button onClick={() => act('push')} disabled={busy !== null} className={buttonClass('primary', 'md')}>{busy === 'push' ? <Busy>Pushing</Busy> : 'Push to the pull request'}</button>
-          <button onClick={() => act('discard')} disabled={busy !== null} className={buttonClass('danger', 'md')}>{busy === 'discard' ? <Busy>Discarding</Busy> : 'Discard'}</button>
+          <button onClick={() => act('push')} disabled={busy !== null} className={buttonClass('primary', 'md')}>{busy === 'push' ? <Busy>Pushing</Busy> : <><IconUpload />Push to the pull request</>}</button>
+          <button onClick={() => act('discard')} disabled={busy !== null} className={buttonClass('danger', 'md')}>{busy === 'discard' ? <Busy>Discarding</Busy> : <><IconX />Discard</>}</button>
           <span className="text-[13px] text-subtle">Adds a commit to the branch and posts the reply.</span>
         </div>
       </section>
@@ -102,7 +103,7 @@ export default function RevisionPanel({ run, onChange }: { run: RunView; onChang
         ReProducer can revise the fix to answer them and verify it again before anything is pushed.
       </p>
       {error && <ErrorNote message={error} />}
-      <button onClick={() => act('start')} disabled={busy !== null || (run.revisions ?? 0) >= 3} className={`${buttonClass('primary', 'md')} self-start`}>{busy === 'start' ? <Busy>Starting</Busy> : 'Address review feedback'}</button>
+      <button onClick={() => act('start')} disabled={busy !== null || (run.revisions ?? 0) >= 3} className={`${buttonClass('primary', 'md')} self-start`}>{busy === 'start' ? <Busy>Starting</Busy> : <><IconRefresh />Address review feedback</>}</button>
     </Panel>
   );
 }

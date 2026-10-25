@@ -21,6 +21,8 @@ interface Props {
   /** The 16-pixel head and shell crop in a rounded tile: the agent's avatar on the timeline (32 px), the favicon (16 px). */
   avatar?: boolean;
   walking?: boolean;
+  /** Hold the pose without moving (a finished step on the timeline). */
+  still?: boolean;
   /** Accessible name; defaults to a description of the pose. Pass '' to hide it from screen readers (decorative use). */
   label?: string;
   className?: string;
@@ -31,7 +33,7 @@ interface Props {
  * Loupe, the mascot. Hover: the pupils follow the cursor. Click: a short jump. Both are off for people who prefer reduced motion (CSS),
  * and every animation is whole-pixel steps. The pose follows what the agent is doing (see the run page).
  */
-export default function Mascot({ pose = 'idle', size = avatarDefault(), avatar = false, walking = false, label, className = '', style }: Props) {
+export default function Mascot({ pose = 'idle', size = avatarDefault(), avatar = false, walking = false, still = false, label, className = '', style }: Props) {
   const pupilsRef = useRef<SVGGElement>(null);
   const hostRef = useRef<HTMLSpanElement>(null);
   const [jumping, setJumping] = useState(false);
@@ -75,7 +77,7 @@ export default function Mascot({ pose = 'idle', size = avatarDefault(), avatar =
   return (
     <span
       ref={hostRef}
-      className={`rpm ${avatar ? 'rpm-avatar' : ''} ${className}`}
+      className={`rpm ${avatar ? 'rpm-avatar' : ''} ${still ? 'rpm-still' : ''} ${className}`}
       style={{ width: dim, height: dim, ...style }}
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label ?? LABELS[pose] })}
       onClick={onClick}

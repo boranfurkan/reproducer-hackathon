@@ -1,10 +1,21 @@
 'use client';
 
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Mascot from './mascot/Mascot';
 
 type Kind = 'peek' | 'walk' | 'wave' | 'chase';
+
+// Sponsor logos in public/sponsors: shown height in px, width from each file's aspect ratio.
+const SPONSORS = [
+  { name: 'Google DeepMind', src: '/sponsors/google-deepmind.svg', h: 15, ratio: 67.65 / 9 },
+  { name: 'MongoDB', src: '/sponsors/mongodb.png', h: 22, ratio: 2204 / 556 },
+  { name: 'Encode Club', src: '/sponsors/encode-club.png', h: 30, ratio: 1102 / 582 },
+  { name: 'Arc', src: '/sponsors/arc.png', h: 26, ratio: 336 / 343 },
+  { name: 'Saint.work', src: '/sponsors/saint-work.png', h: 22, ratio: 893 / 198 },
+  { name: 'treg', src: '/sponsors/treg.png', h: 20, ratio: 1001 / 280 },
+].map((s) => ({ ...s, w: Math.round(s.h * s.ratio) }));
 
 const SIZE = 64;
 const BUG = (
@@ -101,8 +112,19 @@ export default function SiteFooter() {
 
   return (
     <footer className="mt-auto border-t border-purple-800">
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-8 gap-y-4 px-4 pt-6 sm:px-8">
+        <span className="font-mono text-[11px] font-medium tracking-[0.08em] text-subtle uppercase">Encode London 2026 sponsors</span>
+        <ul className="m-0 flex list-none flex-wrap items-center gap-x-8 gap-y-4 p-0">
+          {SPONSORS.map((s) => (
+            <li key={s.src}>
+              {/* The logos are dark artwork: shown white on the dark footer, brighter on hover. */}
+              <Image src={s.src} alt={s.name} width={s.w} height={s.h} unoptimized className="w-auto opacity-60 brightness-0 invert transition-opacity hover:opacity-100" style={{ height: s.h }} />
+            </li>
+          ))}
+        </ul>
+      </div>
       <div ref={stage} className="relative mx-auto h-24 max-w-[1120px] overflow-hidden px-4 sm:px-8">
-        <p className="pt-3 font-mono text-xs text-faint">ReProducer · bugs you cannot reproduce, reproduced.</p>
+        <p className="pt-4 font-mono text-xs text-faint">ReProducer · bugs you cannot reproduce, reproduced.</p>
         {moment && <Moment key={moment.id} kind={moment.kind} stage={stage} onDone={() => setMoment(null)} />}
       </div>
     </footer>

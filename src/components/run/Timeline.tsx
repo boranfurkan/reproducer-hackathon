@@ -1,3 +1,4 @@
+import { IconExternal } from '../icons';
 import Mascot from '../mascot/Mascot';
 import type { Pose } from '../mascot/pixels';
 import MatrixTable, { matrixCounts } from './MatrixTable';
@@ -214,7 +215,8 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
         return (
           <li key={e.id} className="relative flex items-start gap-3.5">
             <span className="relative z-[1] flex w-8 flex-none justify-center">
-              {e.who === 'you' ? <UserTile letters={initials(user.name, user.login)} size={32} /> : pose ? <span className="-mx-2.5 -mt-2.5 block"><Mascot pose={pose} size={52} label="" /></span> : <Mascot avatar size={32} label="" />}
+              {/* Only the step being worked on moves; finished steps keep their pose still. */}
+              {e.who === 'you' ? <UserTile letters={initials(user.name, user.login)} size={32} /> : pose ? <span className="-mx-2.5 -mt-2.5 block"><Mascot pose={pose} size={52} label="" still={!live} /></span> : <Mascot avatar size={32} label="" still />}
             </span>
             <div className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-[10px] border px-3.5 pt-2.5 pb-3 ${e.who === 'you' ? 'border-purple-700 bg-purple-850' : tone!.box}`}>
               <div className="flex items-baseline justify-between gap-2.5">
@@ -237,7 +239,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
                 </details>
               )}
               {e.sources && e.sources.length > 0 && (
-                <span className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs">{e.sources.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer">{s.title} ↗</a>)}</span>
+                <span className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs">{e.sources.map((s) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1">{s.title}<IconExternal size={12} /></a>)}</span>
               )}
               {e.proof && (
                 <details className="text-sm">
@@ -253,7 +255,7 @@ export default function Timeline({ run, events, user, running }: { run: RunView;
               )}
               {e.matrix && (
                 <div className="mt-1">
-                  <MatrixTable rows={e.matrix.rows} isolated={e.matrix.after || e.matrix.experiment ? [] : isolated} isolatedLabel={e.matrix.after || e.matrix.experiment ? undefined : label} added={added} otherRows={e.matrix.experiment ? [] : (run.otherProblems ?? []).map((o) => o.profile)} />
+                  <MatrixTable rows={e.matrix.rows} isolated={e.matrix.after || e.matrix.experiment ? [] : isolated} isolatedLabel={e.matrix.after || e.matrix.experiment ? undefined : label} added={added} otherRows={e.matrix.experiment ? [] : (run.otherProblems ?? []).map((o) => o.profile)} afterFix={e.matrix.after} />
                 </div>
               )}
               {e.out && <pre className={`m-0 max-h-64 overflow-auto rounded-md border border-purple-800 bg-code px-3 py-2.5 font-mono text-[12.5px] leading-relaxed whitespace-pre-wrap ${e.out.tone === 'fail' ? 'text-[#ffb3ab]' : 'text-[#a6f3cd]'}`}>{e.out.text}</pre>}

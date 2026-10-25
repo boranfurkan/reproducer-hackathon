@@ -79,11 +79,13 @@ export function RunCardsSkeleton({ rows = 3 }: { rows?: number }) {
 
 export function IssueRowsSkeleton({ rows = 4 }: { rows?: number }) {
   return (
-    <Loading label="Loading issues" className="flex flex-col overflow-hidden rounded-lg border border-purple-800">
+    <Loading label="Loading issues" className="flex flex-col gap-3">
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex gap-4 border-b border-purple-800 bg-purple-900 px-[18px] py-4 last:border-b-0">
-          <Skeleton className="h-3.5 w-7 flex-none" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div key={i} className="flex rounded-lg border border-purple-800 bg-purple-900">
+          <div className="flex w-[76px] flex-none items-center justify-center rounded-l-lg border-r-2 border-dashed border-purple-700 bg-purple-850 py-4 sm:w-[96px]">
+            <Skeleton className="h-5 w-10" />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-5 py-4">
             <Skeleton className="h-4 w-3/5" />
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-2/5" />

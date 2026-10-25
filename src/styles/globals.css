@@ -76,6 +76,12 @@ a {
 .rp-skel { background: #1d1240; animation: rp-skel 1.2s steps(2, end) infinite; }
 @keyframes rp-skel { 0% { opacity: 1; } 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .rp-skel { animation: none; } }
+/* Loading pixels: each one lights up in turn, in whole steps. */
+.rp-dot { opacity: 0.3; animation: rp-dot 0.9s steps(1, end) infinite; }
+.rp-dot:nth-child(2) { animation-delay: 0.3s; }
+.rp-dot:nth-child(3) { animation-delay: 0.6s; }
+@keyframes rp-dot { 0% { opacity: 1; transform: translateY(-1px); } 33% { opacity: 0.3; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rp-dot { animation: none; opacity: 1; } .rp-dot:nth-child(2) { opacity: 0.6; } .rp-dot:nth-child(3) { opacity: 0.3; } }
 
 /* ---------- Loupe, the mascot (a 24x24 pixel grid; every animation moves whole pixels with steps()) ---------- */
 .rpm {
@@ -127,6 +133,10 @@ a {
 @keyframes rpm-flip { 0% { opacity: 1; } 50% { opacity: 0; } }
 @keyframes rpm-jump { 0% { transform: translateY(0); } 20% { transform: translateY(-3px); } 40% { transform: translateY(-4px); } 60% { transform: translateY(-3px); } 80% { transform: translateY(-1px); } 100% { transform: translateY(0); } }
 
+/* A still mascot (finished steps of the timeline): the pose stays, nothing moves. */
+.rpm-still * { animation: none !important; }
+.rpm-still .rpm-lids, .rpm-still .rpm-legs-b, .rpm-still .rpm-arm-b { opacity: 0 !important; }
+.rpm-still .rpm-arm-a, .rpm-still .rpm-legs-a { opacity: 1 !important; }
 /* Paused while the tab is hidden (set from the footer's scheduler). */
 html.rpm-paused .rpm *,
 html.rpm-paused .rpm-wander { animation-play-state: paused !important; }

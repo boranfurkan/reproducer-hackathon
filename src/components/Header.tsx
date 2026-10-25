@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { IconChart, IconGitHub, IconLogOut } from './icons';
 import Mascot from './mascot/Mascot';
 import { UserTile, buttonClass } from './ui';
 import { initials, type SessionUser } from '@/lib/client';
@@ -21,13 +22,14 @@ export default function Header({ user }: { user: SessionUser | null }) {
         </Link>
         {user ? (
           <div className="flex items-center gap-3 font-mono text-[13px] font-medium text-muted">
-            <Link href="/insights" className="text-muted no-underline hover:text-foreground">Insights</Link>
+            {/* On a phone the labels give way to the icons, so the bar fits. */}
+            <Link href="/insights" aria-label="Insights" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-muted no-underline transition-colors hover:bg-purple-850 hover:text-foreground"><IconChart size={14} /><span className="hidden sm:inline">Insights</span></Link>
             <UserTile letters={initials(user.name, user.login)} />
-            <span className="max-w-[30vw] truncate">{user.login}</span>
-            <button onClick={logout} className={buttonClass('secondary', 'sm')}>Log out</button>
+            <span className="hidden max-w-[30vw] truncate sm:inline">{user.login}</span>
+            <button onClick={logout} aria-label="Log out" className={buttonClass('secondary', 'sm')}><IconLogOut size={14} /><span className="hidden sm:inline">Log out</span></button>
           </div>
         ) : (
-          <a href="/api/auth/login" className={`${buttonClass('primary', 'sm')} no-underline`}>Log in with GitHub</a>
+          <a href="/api/auth/login" className={`${buttonClass('primary', 'sm')} no-underline`}><IconGitHub size={14} />Log in with GitHub</a>
         )}
       </div>
     </header>

@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { Loading, Skeleton } from './loaders';
 import Shell from './Shell';
-import { Eyebrow, Panel, RunStatusChip } from './ui';
+import { BackLink, Eyebrow, Panel, RunStatusChip } from './ui';
 import { formatDuration, kilo } from '@/lib/client';
 import { useInsights } from '@/lib/hooks';
 
@@ -94,11 +93,11 @@ function Body() {
 
 export default function Insights() {
   return (
-    <Shell maxWidth={1120}>
+    <Shell>
       {() => (
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
-            <Link href="/" className="font-mono text-[13px] text-subtle no-underline hover:text-foreground">← Repositories</Link>
+            <BackLink href="/">Repositories</BackLink>
             <h1 className="font-mono text-[clamp(22px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em]">Insights</h1>
             <p className="text-sm text-muted">What ReProducer has done for you, and what it cost. Computed in MongoDB.</p>
           </div>

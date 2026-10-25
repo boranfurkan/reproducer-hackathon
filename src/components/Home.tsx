@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import AskMemory from './AskMemory';
 import Header from './Header';
+import { IconGitHub } from './icons';
 import { LearnedSkeleton, PageLoader, RepoRowsSkeleton, RunCardsSkeleton } from './loaders';
 import Mascot from './mascot/Mascot';
 import SiteFooter from './SiteFooter';
@@ -31,7 +32,7 @@ function Landing({ error }: { error: string | null }) {
           </p>
           {error && <ErrorNote message={`Login did not complete (${error.replaceAll('_', ' ')}). Please try again.`} />}
           <div className="flex flex-wrap items-center gap-4">
-            <a href="/api/auth/login" className={`${buttonClass('primary', 'lg')} no-underline`}>Log in with GitHub</a>
+            <a href="/api/auth/login" className={`${buttonClass('primary', 'lg')} no-underline`}><IconGitHub size={18} />Log in with GitHub</a>
             <span className="max-w-[280px] text-[13px] text-subtle">It reads your issues. It opens a pull request only after you approve.</span>
           </div>
         </div>

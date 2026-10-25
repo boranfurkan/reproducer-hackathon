@@ -10,7 +10,8 @@ import RevisionPanel from './run/RevisionPanel';
 import Timeline from './run/Timeline';
 import { Busy, RunPageSkeleton } from './loaders';
 import Shell from './Shell';
-import { ErrorNote, Eyebrow, InlineCode, Panel, PixelDots, RunStatusChip, buttonClass } from './ui';
+import { IconRefresh, IconStop } from './icons';
+import { BackLink, ErrorNote, Eyebrow, InlineCode, Panel, PixelDots, RunStatusChip, buttonClass } from './ui';
 import { formatClock, formatDuration, kilo, type RunView, type TimelineEvent } from '@/lib/client';
 import { stopRun, useNow, useRun } from '@/lib/hooks';
 
@@ -112,7 +113,7 @@ function StoppedPanel({ run, owner, repo }: { run: RunView; owner: string; repo:
           <ul className="m-0 flex list-disc flex-col gap-0.5 pl-[18px] text-sm text-muted">{run.suggestions.map((x) => <li key={x}>{x}</li>)}</ul>
         </div>
       )}
-      <Link href={tryAgain} className={`${buttonClass('primary', 'md')} self-start no-underline`}>Try again with more detail</Link>
+      <Link href={tryAgain} className={`${buttonClass('primary', 'md')} self-start no-underline`}><IconRefresh />Try again with more detail</Link>
     </section>
   );
 }
@@ -148,7 +149,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2.5">
-        <Link href={`/repos/${owner}/${repo}`} className="font-mono text-[13px] text-subtle no-underline [overflow-wrap:anywhere] hover:text-foreground">← {run.repo}</Link>
+        <BackLink href={`/repos/${owner}/${repo}`}>{run.repo}</BackLink>
         <h1 className="font-mono text-[clamp(20px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em] text-balance"><span className="text-hot">#{run.issueNumber}</span> {run.title}</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
           <RunStatusChip run={run} />
@@ -159,7 +160,7 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
           </span>
           {running && (
             <button onClick={stop} disabled={stopping || run.stopRequested} className={`${buttonClass('danger', 'sm')} ml-auto`}>
-              {stopping || run.stopRequested ? <Busy>Stopping after this step</Busy> : 'Stop run'}
+              {stopping || run.stopRequested ? <Busy>Stopping after this step</Busy> : <><IconStop size={14} />Stop run</>}
             </button>
           )}
         </div>
@@ -201,5 +202,5 @@ function Run({ id, user }: { id: string; user: Parameters<typeof Timeline>[0]['u
 
 export default function RunPage() {
   const { id } = useParams<{ id: string }>();
-  return <Shell maxWidth={1240}>{(user) => <Run id={id} user={user} />}</Shell>;
+  return <Shell>{(user) => <Run id={id} user={user} />}</Shell>;
 }

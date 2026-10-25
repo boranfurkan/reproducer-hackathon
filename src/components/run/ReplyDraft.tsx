@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { IconMessage, IconRefresh, IconSend } from '../icons';
 import { Busy } from '../loaders';
 import { ErrorNote, Eyebrow, Panel, buttonClass } from '../ui';
 import type { RunView } from '@/lib/client';
@@ -52,8 +53,8 @@ export default function ReplyDraft({ run, onChange }: { run: RunView; onChange: 
           {text && <textarea value={text} onChange={(e) => setText(e.target.value)} rows={9} aria-label="Reply to the reporter" className="resize-y rounded-md border border-purple-700 bg-ink p-3 text-sm leading-normal text-foreground outline-0 focus:border-purple-500" />}
           {error && <ErrorNote message={error} />}
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={draft} disabled={busy !== null} className={buttonClass(text ? 'secondary' : 'primary', 'sm')}>{busy === 'draft' ? <Busy>Writing</Busy> : text ? 'Write it again' : 'Draft a reply'}</button>
-            {text && <button onClick={post} disabled={busy !== null || text.trim().length < 10} className={buttonClass('primary', 'sm')}>{busy === 'post' ? <Busy>Posting</Busy> : `Post on #${run.issueNumber}`}</button>}
+            <button onClick={draft} disabled={busy !== null} className={buttonClass(text ? 'secondary' : 'primary', 'sm')}>{busy === 'draft' ? <Busy>Writing</Busy> : text ? <><IconRefresh size={14} />Write it again</> : <><IconMessage size={14} />Draft a reply</>}</button>
+            {text && <button onClick={post} disabled={busy !== null || text.trim().length < 10} className={buttonClass('primary', 'sm')}>{busy === 'post' ? <Busy>Posting</Busy> : <><IconSend size={14} />Post on #{run.issueNumber}</>}</button>}
           </div>
         </>
       )}

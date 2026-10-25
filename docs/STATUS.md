@@ -133,7 +133,7 @@ Sandbox (Antigravity managed agent)
 - **Playwright**: Chromium and WebKit work; Firefox crashes unless `MOZ_DISABLE_CONTENT_SANDBOX=1` and is not installed. `browserName` cannot be set inside a `describe`. With `locale: "tr-TR"` Chromium does not change the default locale of a no-argument `toLocaleUpperCase()`; WebKit and Firefox do.
 
 MongoDB
-- **Fused ranks only order results**: `$rankFusion` gave 0.016 to every hit, so thresholds use the cosine score from `$vectorSearch`. Measured on real memory: related bugs 0.78 to 0.85 and unrelated ones 0.62 to 0.72 for issue text (threshold 0.76); the loop's recall query shares the memory text's template, which lifts every score (same bug 0.89 to 0.92, unrelated up to 0.80; threshold 0.82); diffs 0.85.
+- **Fused ranks only order results**: `$rankFusion` gave 0.016 to every hit, so thresholds use the cosine score from `$vectorSearch`. Measured on real memory: issue text against the memory, related bugs 0.78 to 0.85 and unrelated ones 0.62 to 0.72 on the first demo set, but up to 0.78 between different bugs of the current demo shop (one app, shared vocabulary) and 0.86 to 0.90 for the same bug, so triage uses 0.80; the loop's recall query shares the memory text's template, which lifts every score (same bug 0.89 to 0.92, unrelated up to 0.80; threshold 0.82); diffs 0.85.
 - **Automated Embedding is text only**: screenshots and video are described by Argon first.
 - **Stream Processing**: no free tier; windows stall on a quiet change-stream source (the watermark does not move and there is no idle timeout), so the processor keeps counters instead (`docs/STREAM-PROCESSING.md`).
 - Server 8.0.34: `$rankFusion` works, `$scoreFusion` (8.3+) does not.

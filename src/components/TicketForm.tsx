@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { IconExternal, IconSearch, IconX } from './icons';
 import { Busy, ReportSkeleton } from './loaders';
 import Shell from './Shell';
-import { ErrorNote, Eyebrow, PixelDots, Panel, buttonClass } from './ui';
+import { BackLink, ErrorNote, Eyebrow, PixelDots, Panel, buttonClass } from './ui';
 import type { MediaItem } from '@/lib/client';
 import { startRun, uploadMedia, useIssues, useWarmSandbox } from '@/lib/hooks';
 
@@ -13,6 +13,16 @@ const EXAMPLES = [
   'Samsung Galaxy Z Flip, Chrome on Android, phone language is Turkish, customer is in Istanbul',
   'iPhone, opened from an in-app browser, language English (UK)',
   'Chrome on a Windows laptop, language English (US)',
+];
+
+// What the developer knows about each reporter of the demo repository's tickets (docs/DEMO-BUGS.md), one click away while recording.
+const DEMO_REPO = 'boranfurkan/reproducer-hackathon-demo';
+const DEMO_NOTES: { issue: number; label: string; notes: string }[] = [
+  { issue: 8, label: 'Munich, Chrome, German', notes: 'Customer in Munich, Chrome on Windows 11, German is her language.' },
+  { issue: 9, label: 'MacBook Safari, accessibility settings', notes: 'MacBook Air, Safari. She told me she changed some accessibility settings on her Mac a while ago because things moving on screen make her dizzy.' },
+  { issue: 10, label: 'Windows Chrome, privacy extensions', notes: 'Chrome on a Windows work laptop. He says he is careful about privacy and has a few browser extensions.' },
+  { issue: 11, label: 'Edinburgh and Manchester', notes: 'The customers who wrote are in Edinburgh and Manchester. Our agency is in Istanbul and my laptop clock is set to UTC.' },
+  { issue: 12, label: 'iPhone 8, never updated', notes: "iPhone 8, she hasn't updated it in years, Safari." },
 ];
 
 function Form({ owner, name, number }: { owner: string; name: string; number: number }) {
@@ -30,6 +40,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
   const [formError, setFormError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const error = formError || issuesError;
+  const isDemo = `${owner}/${name}`.toLowerCase() === DEMO_REPO;
 
   // Get the sandbox ready while the form is being filled in (a cold start installs Playwright, about 2 minutes).
   const warm = useWarmSandbox(owner, name);
@@ -65,7 +76,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <Link href={`/repos/${owner}/${name}`} className="font-mono text-[13px] text-subtle no-underline [overflow-wrap:anywhere] hover:text-foreground">← {owner}/{name}</Link>
+          <BackLink href={`/repos/${owner}/${name}`}>{owner}/{name}</BackLink>
           <h1 className="font-mono text-[clamp(22px,3vw,28px)] leading-tight font-semibold tracking-[-0.02em]">Investigate <span className="text-hot">#{number}</span></h1>
         </div>
         {warm === 'warming' && (
@@ -89,7 +100,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             <>
               <h3 className="font-mono text-[17px] leading-snug font-semibold">{issue.title}</h3>
               <p className="whitespace-pre-wrap text-[15px] text-muted">{issue.body || 'No description.'}</p>
-              <a href={issue.url} target="_blank" rel="noreferrer" className="font-mono text-xs">Open on GitHub ↗</a>
+              <a href={issue.url} target="_blank" rel="noreferrer" className={`${buttonClass('secondary', 'sm')} mt-1 self-start text-muted no-underline hover:text-foreground`}>Open on GitHub<IconExternal size={14} /></a>
             </>
           ) : error ? null : (
             <ReportSkeleton />
@@ -101,13 +112,37 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
             <span className="font-mono text-sm font-semibold">Who hit the bug?</span>
             <span className="text-[13px] text-subtle">Device, browser, language, location: whatever the report leaves out. The agent rebuilds this environment.</span>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder={EXAMPLES[0]} className={`${field} resize-y border-purple-700 p-3 text-[15px] leading-normal`} />
-            <span className="flex flex-wrap gap-1.5">
-              {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" onClick={() => setNotes(ex)} className="rounded-sm border border-purple-700 px-2.5 py-1 font-mono text-xs text-muted transition-colors hover:bg-purple-850 hover:text-foreground">
-                  {ex.slice(0, 34)}…
-                </button>
-              ))}
-            </span>
+            {isDemo ? (
+              <span className="flex flex-col gap-1.5">
+                <span className="font-mono text-xs text-subtle">Demo tickets: fill in what we know about that reporter</span>
+                <span className="flex flex-wrap gap-1.5">
+                  {DEMO_NOTES.map((d) => {
+                    const current = d.issue === number;
+                    const chosen = notes === d.notes;
+                    return (
+                      <button
+                        key={d.issue}
+                        type="button"
+                        onClick={() => setNotes(d.notes)}
+                        aria-pressed={chosen}
+                        className={`inline-flex items-center gap-2 rounded-sm border px-2.5 py-1 font-mono text-xs transition-colors ${chosen ? 'border-purple-200 bg-purple-200 text-purple-950' : current ? 'border-hot/60 text-foreground hover:bg-purple-850' : 'border-purple-700 text-muted hover:bg-purple-850 hover:text-foreground'}`}
+                      >
+                        <span className={`font-semibold ${chosen ? '' : 'text-hot'}`}>#{d.issue}</span>
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </span>
+              </span>
+            ) : (
+              <span className="flex flex-wrap gap-1.5">
+                {EXAMPLES.map((ex) => (
+                  <button key={ex} type="button" onClick={() => setNotes(ex)} className="rounded-sm border border-purple-700 px-2.5 py-1 font-mono text-xs text-muted transition-colors hover:bg-purple-850 hover:text-foreground">
+                    {ex.slice(0, 34)}…
+                  </button>
+                ))}
+              </span>
+            )}
           </label>
 
           <div className="flex flex-col gap-2">
@@ -132,7 +167,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
                 {media.map((m) => (
                   <span key={m.uri} className="inline-flex items-center gap-2 rounded-sm bg-purple-850 py-1 pr-1.5 pl-2.5 font-mono text-xs text-foreground">
                     {m.kind === 'video' ? 'Video' : 'Image'}: {m.label}
-                    <button type="button" aria-label={`Remove ${m.label}`} onClick={() => setMedia((all) => all.filter((x) => x.uri !== m.uri))} className="size-5 rounded-[4px] text-sm text-subtle transition-colors hover:bg-purple-700 hover:text-foreground">×</button>
+                    <button type="button" aria-label={`Remove ${m.label}`} onClick={() => setMedia((all) => all.filter((x) => x.uri !== m.uri))} className="grid size-5 place-items-center rounded-[4px] text-subtle transition-colors hover:bg-purple-700 hover:text-foreground"><IconX size={12} /></button>
                   </span>
                 ))}
               </span>
@@ -171,7 +206,7 @@ function Form({ owner, name, number }: { owner: string; name: string; number: nu
 
           {error && <ErrorNote message={error} />}
           <div className="flex flex-wrap items-center gap-4 pt-1">
-            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : 'Investigate'}</button>
+            <button onClick={start} disabled={busy || uploading || !issue} className={buttonClass('primary', 'lg')}>{busy ? <Busy>Starting</Busy> : <><IconSearch size={18} />Investigate</>}</button>
             <span className="max-w-[340px] text-[13px] text-subtle">{deep ? 'A deep run can take half an hour; the page shows every step live.' : 'A quick run takes a few minutes.'} Nothing is pushed to GitHub until you approve.</span>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { IconMessage } from './icons';
 import { Busy } from './loaders';
 import { ErrorNote, Eyebrow, Panel, buttonClass } from './ui';
 import { askMemory } from '@/lib/hooks';
@@ -42,7 +43,7 @@ export default function AskMemory() {
             <button key={ex} type="button" onClick={() => { setQuestion(ex); ask(ex); }} disabled={busy} className="rounded-sm border border-purple-700 px-2.5 py-1 text-left font-mono text-xs text-muted transition-colors hover:bg-purple-850 hover:text-foreground disabled:opacity-50">{ex}</button>
           ))}
         </div>
-        <button type="submit" disabled={busy || question.trim().length < 3} className={`${buttonClass('primary', 'sm')} self-start`}>{busy ? <Busy>Looking it up</Busy> : 'Ask'}</button>
+        <button type="submit" disabled={busy || question.trim().length < 3} className={`${buttonClass('primary', 'sm')} self-start`}>{busy ? <Busy>Looking it up</Busy> : <><IconMessage size={14} />Ask</>}</button>
       </form>
       {error && <ErrorNote message={error} />}
       {result && !busy && (

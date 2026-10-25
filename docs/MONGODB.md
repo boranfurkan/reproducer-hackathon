@@ -27,7 +27,7 @@ Never stored: user env vars, tokens, API keys. Everything written to `runs` and 
 | Feature | Where | What it does |
 |---|---|---|
 | **Automated Embedding** (Voyage) | `bug_memory_vector` (`voyage-4` on `memoryText`), `bug_memory_code` (`voyage-code-4` on `diff`), both with a `repo` filter | Embeddings are made by Atlas on insert (ready about 5 s later); the app has no embedding code |
-| **Vector Search** | `similarBySymptom`, `similarFixes` in `src/lib/memory.ts` | Issue list badge "looks like repo#N, fixed" (cosine ≥ 0.76); "Similar past fixes" on the approval card by diff (≥ 0.85) |
+| **Vector Search** | `similarBySymptom`, `similarFixes` in `src/lib/memory.ts` | Issue list badge "looks like repo#N, fixed" (cosine ≥ 0.80); "Similar past fixes" on the approval card by diff (≥ 0.85) |
 | **Hybrid Search** (`$rankFusion`) | `recallSimilar` | "Have we seen this before?" before the fix proposal: vector search (weight 0.7) fused with lexical search (0.3), outcome-weighted, semantic score ≥ 0.82, never the same issue. Also behind `search_memory` in Ask the memory |
 | **Atlas Search** | `bug_memory_search`, `environments_search` | Lexical half of the hybrid search; `$searchMeta` facets (isolating variable, engine, locale) for "What it has learned" on the dashboard; fuzzy search of the device catalog (`matchDevices`), so "Samsng Galaxy Z Flip" or "iPhone 8 she never updated" finds the device |
 | **Atlas Stream Processing** | processor `ticketClusters` (`docs/STREAM-PROCESSING.md`) | Reads new `tickets` from a change stream and keeps one counter per repository, engine and locale with `$merge` and an update pipeline; three reports from one environment become a "Possible shared bug" alert (`GET /api/clusters`) |
@@ -49,7 +49,7 @@ Created by `npm run db:setup` (`scripts/setup-db.ts`, safe to repeat; it waits u
 ## Thresholds (measured on the real memory)
 
 A fused rank only orders results (`$rankFusion` gave 0.016 to every hit), so every threshold uses the cosine score of `$vectorSearch`:
-- Issue text against memory: related bugs 0.78 to 0.85, unrelated 0.62 to 0.72. Threshold 0.76 (triage badges).
+- Issue text against memory: on the first demo set, related bugs 0.78 to 0.85 and unrelated 0.62 to 0.72 (threshold 0.76). On the current demo shop, whose five bugs share one app and its vocabulary, an issue scores 0.86 to 0.90 against its own fix and at most 0.78 against the other bugs, so the triage badges use 0.80.
 - The loop's recall query shares the memory text's template, which lifts every score: the same bug 0.89 to 0.92, unrelated ones up to 0.80. Threshold 0.82.
 - Diffs: 0.85 for "Similar past fixes".
 

@@ -42,7 +42,7 @@ export function matrixCounts(rows: MatrixRow[], only?: (r: MatrixRow) => boolean
  * `isolatedLabel` is the variable ("locale"); `added` says the cause was an extra condition rather than something the reporter has.
  * `otherRows` are rows that fail for a different reason (another bug in the repository): labelled, and not counted against this fix.
  */
-export default function MatrixTable({ rows, isolated = [], isolatedLabel, added = false, otherRows = [] }: { rows: MatrixRow[]; isolated?: string[]; isolatedLabel?: string; added?: boolean; otherRows?: string[] }) {
+export default function MatrixTable({ rows, isolated = [], isolatedLabel, added = false, otherRows = [], afterFix = false }: { rows: MatrixRow[]; isolated?: string[]; isolatedLabel?: string; added?: boolean; otherRows?: string[]; afterFix?: boolean }) {
   const cols = columnsOf(rows);
   const grid = { gridTemplateColumns: `minmax(0,1fr) ${cols.map(() => '64px').join(' ')}` };
   const allPass = rows.length > 0 && rows.every((r) => r.ok);
@@ -82,7 +82,8 @@ export default function MatrixTable({ rows, isolated = [], isolatedLabel, added 
           <span>{added ? `Adding ${isolatedLabel} to the reporter's profile reproduces the bug.` : `Resetting only the ${isolatedLabel} makes the reporter's profile pass.`}</span>
         </div>
       )}
-      {!isolatedLabel && allPass && (
+      {/* All green after a fix is the goal, not a failure to isolate. */}
+      {!isolatedLabel && allPass && !afterFix && (
         <div className="flex flex-wrap items-baseline gap-2 text-sm text-muted">
           <span className="rounded-sm bg-purple-850 px-2 py-0.5 font-mono text-xs font-semibold text-amber">nothing isolated</span>
           <span>Every profile passes. The difference is something this matrix did not vary.</span>
