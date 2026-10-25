@@ -7,7 +7,10 @@ import { MATRIX_CONDITIONS } from "./conditions";
 const MATRIX_JS = String.raw`const pw = require("playwright");
 const fs = require("fs");
 const job = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-const T = 3500;
+// The sandbox's WebKit renders at about 4 frames a second, and Playwright's click checks need frames: generous step timeouts, and at
+// most a few pages at a time per browser.
+const T = 6000;
+const PARALLEL = 4;
 // Conditions shared with the generated tests (src/lib/harness/conditions.ts).
 const CONDITIONS = ${JSON.stringify(MATRIX_CONDITIONS)};
 
@@ -94,12 +97,22 @@ async function runProfile(browser, p) {
     try { browsers[e] = await pw[e].launch(); } catch (err) { skipped.push(e + ": " + String(err.message).split("\n")[0].slice(0, 100)); }
   }
   const launched = Object.keys(browsers);
-  const tasks = [];
+  const work = [];
   for (const p of job.profiles) {
     const own = launched.includes(p.engine) ? p.engine : launched[0];
-    for (const e of launched) tasks.push(runProfile(browsers[e], { ...p, engine: e }).then((r) => ({ name: p.name, engine: e, primary: e === own, r })));
+    for (const e of launched) work.push({ p, e, own });
   }
-  const done = await Promise.all(tasks);
+  // A small pool per engine: every engine runs at most PARALLEL pages at once.
+  const done = [];
+  await Promise.all(launched.map(async (engine) => {
+    const queue = work.filter((w) => w.e === engine);
+    await Promise.all(Array.from({ length: PARALLEL }, async () => {
+      for (let w = queue.shift(); w; w = queue.shift()) {
+        const r = await runProfile(browsers[engine], { ...w.p, engine });
+        done.push({ name: w.p.name, engine, primary: engine === w.own, r });
+      }
+    }));
+  }));
   const results = job.profiles.filter((p) => done.some((d) => d.name === p.name)).map((p) => {
     const mine = done.filter((d) => d.name === p.name);
     const main = mine.find((d) => d.primary).r;
