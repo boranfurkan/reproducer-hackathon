@@ -1,72 +1,70 @@
-# Submission drafts
+# Submission
 
-Drafts for the platform form (deadline Sunday 25 October 2026, 12:00 London). Edit freely. Anything in **[brackets]** depends on something that must be true or finished before submitting; check it, then remove the brackets or the sentence.
+Final texts for the submission form (Encode London Hackathon 2026, deadline Sunday 25 October, 12:00 London).
 
-Repository: https://github.com/boranfurkan/reproducer-hackathon (demo target: https://github.com/boranfurkan/reproducer-hackathon-demo)
-Demo video: **[link]**
+- Repository: https://github.com/boranfurkan/reproducer-hackathon
+- Demo target repository (the shop with the bugs and the GitHub issues): https://github.com/boranfurkan/reproducer-hackathon-demo
+- Demo video: **[link]**
 
-## Project description (all challenges)
+Challenges entered: Build with Gemini 4 Argon (Google DeepMind), Build Anything with MongoDB Atlas (MongoDB), Agents That Ship. Not entered: Saint (ReProducer does not use Saint) and The Real World.
 
-**ReProducer** turns "I cannot reproduce this bug" into a verified fix, for the bugs a coding assistant cannot find by reading the code: the ones that only happen to some users because of something they have. A client reports a bug that only happens on their device, in their language or in their timezone. ReProducer reads the GitHub issue and what the developer knows about the reporter (a sentence like "customer in Munich, Chrome on Windows, German", and optionally their screen recording), rebuilds that person's environment, runs the same steps under the reporter's profile, a neutral baseline, one-variable variations and conditions the report never mentioned, investigates in depth with Argon, and isolates the one thing that only they have. It then writes a failing Playwright test, fixes the code until the test passes and the rest of the suite stays green, and asks the developer before it opens a pull request.
+## 1. Project description
 
-The user is a developer who gets tickets they cannot reproduce on their own machine, where making the bug happen takes longer than fixing it.
+ReProducer is an AI agent for the bug reports nobody can reproduce. A customer writes "the shop goes white when I empty my basket"; it works on your machine, the code looks fine, and a coding assistant that reads the code finds nothing, because the bug only exists where the code meets something that customer has: the browser translating the page, a content blocker, reduced motion, a timezone on the night the clocks change, an old iPhone. ReProducer takes the GitHub issue plus one sentence about the reporter ("customer in Munich, Chrome, German"), rebuilds that person's environment in a sandbox with real browsers, investigates in depth with Gemini 4 Argon (the app, its git history and the framework's full source in one context, plus its own browser experiments), writes a test that fails in the reporter's environment, fixes the code until the test passes, and asks the developer before it opens a pull request. It found and fixed all five demo bugs, each invisible in the code, end to end.
 
-What makes it different from a coding agent that reads the code: the demo bugs are invisible in the code. A page that goes white only when Chrome translates it for German customers (React 18 and the browser's `<font>` rewriting), a drawer that never closes for people who asked their Mac for less motion (an accessibility commit made `transitionend` never fire), a pay button that dies under a content blocker, a session that disappears on the night the UK clocks go back, a page that is blank on an iPhone that was never updated past iOS 14. ReProducer finds them by rebuilding the environment and experimenting:
-- It reconstructs the **environment** (engine, viewport, pixel ratio, touch, locale, timezone, blocked storage), using a device catalog in MongoDB and the reporter's recording.
-- It tests conditions the report **never mentioned**: page translation, content blockers, reduced motion, older engines without newer APIs, daylight-saving transitions, blocked storage, slow networks. A ticket that says "customers from Germany" becomes an experiment with the page translated.
-- **Deep investigation**: Argon 4 works the bug for up to half an hour with the application, its whole git history and the full source of the framework the failing page uses in one context (react-dom alone is about 280k tokens), reading and searching code, reading commits, searching the web, and running experiments in real browsers with probes that measure the page (computed styles, whether an API exists). Every step is on the timeline.
-- The pass/fail signal is real: a test that must fail on the reporter's profile before the fix and pass after it, plus a full matrix of environments.
-- It **remembers** verified fixes and recalls similar ones before the next investigation, and a run that did not finish leaves notes on its issue (what it tried, what it read, its best explanation, the fixes that failed), so the next run of that issue picks up where it stopped instead of repeating the work.
-- It states what it could not reproduce (real GPU, vendor browser build, real network) and stops to ask when it cannot reproduce or cannot verify.
+## 2. Challenges and bounties
 
-## Google DeepMind: Build with Gemini 4 Argon
+### Build with Gemini 4 Argon (Google DeepMind), Pathway 1: Autonomous Agents That Ship
 
-Models and agents used, and how:
-- **gemini-4-argon, deep investigation**: one conversation with up to a million tokens of context (app, history, framework source), thinking high, and a tool loop: function calling (read and search files, git log and commits, experiments in the sandbox with probes, conclude) combined with the built-in Google Search and URL context. The fix proposal continues the same conversation, so it writes the test and the fix with everything it learned still in context.
-- **gemini-4-argon** (Interactions API): reads the issue, the developer's notes and the reporter's screen recording; builds the environment profile; proposes extra conditions to test; writes the replay plan; finds the root cause from the whole repository (long context); writes the failing test and the fix (thinking level high, JSON-schema output). Retried with feedback if verification fails.
-- **Antigravity managed agent (antigravity-preview-09-2026, running on Argon)**: the sandbox. A Linux environment where the repository is cloned and installed and Playwright (Chromium and WebKit) runs the replay matrix and the tests. Verification (red test, apply the fix, green tests, full matrix, diff) is a single sandbox call, so the verification loop is real test output, not the model's opinion.
-- **Streaming and thought summaries**: every Argon call streams; the reasoning appears live on the run page.
-- **Conversation state** (`previous_interaction_id`): fix retries and revisions of the pull request continue the model's own interaction, so it keeps its reasoning and the long repository prompt is cached.
-- **Built-in tools together** (Google Search grounding, code execution, URL context): after the root cause, Argon explains the underlying platform rule, cites the specification and proves it with code it runs; the sources go into the pull request.
-- **Function calling**: "Ask the memory" lets the model call read-only functions over MongoDB (hybrid search, grouped counts, the user's runs) to answer questions about past bugs.
-- **Video understanding with timestamps**: key moments of the customer's recording with their times.
-- **gemini-3.8-flash**: writes the pull request summary, triages the issue list (structured output), drafts the reply to a reporter when a bug cannot be reproduced.
-- **Gemini Files API**: carries screen recordings and screenshots; Argon read a 150 KB phone recording in 8 seconds for under 1,000 tokens and listed the exact steps and the environment clues.
+ReProducer is an agent that plans, uses tools and verifies its own work against a concrete pass/fail signal from real browsers.
 
-Real verification loop: failing test on the reporter's environment before the change, passing after, existing tests green, all required environments pass. Human control: the pull request is only opened after the developer clicks Approve; nothing is pushed before that.
+Models and agents:
+- **gemini-4-argon**: the brain. It reads the issue, the developer's notes and the reporter's screen recording; rebuilds the environment; proposes conditions the report never mentioned; writes the replay plan; runs the deep investigation; writes the failing test and the fix; explains the platform rule behind the bug; revises the pull request after review.
+- **Antigravity managed agent (antigravity-preview-09-2026), running on Argon**: the sandbox. A Linux environment where the repository is cloned and Playwright replays every scenario in Chromium and WebKit, runs the tests and verifies the fix.
+- **gemini-3.8-flash**: the quick jobs: triage of the issue list, pull request summaries, drafted replies to reporters, and "Ask the memory".
 
-Measured on 25 October with deep investigation: all five demo bugs were reproduced, explained and fixed end to end, each with a test that fails before the fix and passes after it in Chromium and WebKit. Runs took 13 to 26 minutes (including sandbox resets the agent repaired on its own), 235k to 2.2M new tokens; the React bug was worked with a 326k-token context holding the app, its history and React's source.
+Gemini features used:
+- **1M-token context**: the deep investigation holds the application, its whole git history and the full source of the framework files the failing page loads; on the React bug that was a 326k-token context (react-dom alone is about 280k tokens).
+- **Function calling combined with built-in tools**: one tool loop with ReProducer's functions (read and search files, git log and commits, run an experiment in the sandbox with up to six environment variants and a probe measured in the page, conclude) and Google's Google Search and URL context.
+- **Conversation state** (`previous_interaction_id`): the fix, its retries and later pull request revisions continue the investigation's own conversation, so the fix is written with everything it learned still in context.
+- **Thinking levels and streamed thought summaries**: Argon's reasoning appears live on the run page.
+- **Built-in tools together** (Google Search grounding, code execution, URL context): "Why this happens" explains the browser or framework rule behind each bug, with sources and a computed proof, and it goes into the pull request.
+- **Structured output** (JSON schemas) for every step the app parses.
+- **Video understanding** through the Files API: a customer's recording becomes steps, environment clues and timestamped key moments.
 
-## Agents That Ship
+The verification loop is real: a Playwright test must fail in the reporter's environment before the fix and pass after it, the existing tests must stay green, and the environment matrix must pass in both engines. People stay in control: nothing is written to GitHub until the developer clicks Approve. Measured on 25 October: all five demo bugs reproduced, explained and fixed, each in 13 to 26 minutes.
 
-Tools: GitHub (issues, branch, commit, pull request), a Linux sandbox with Playwright, Gemini (Argon, Flash, Files API), MongoDB Atlas.
+### Build Anything, Change Everything with MongoDB Atlas
 
-Steps: read the issue and the notes; rebuild the reporter's environment; replay under the reporter, a baseline, one-variable resets and model-proposed extra conditions; investigate in depth (read the code, the git history and the framework source, search the web, run experiments in real browsers) until it can name the environment that reproduces the bug and the evidence; write a failing test; fix; verify (test red then green, whole matrix); show root cause, why it happens, diff, test and a fidelity report; **wait for approval**; open the pull request; follow it and revise it after review.
+MongoDB Atlas (M10) is the data store for everything ReProducer knows. All six listed features have a real job:
+- **Automated Embedding**: every verified fix is embedded by Atlas itself, `voyage-4` on the symptom text and `voyage-code-4` on the diff; there is no embedding code in the app.
+- **Atlas Vector Search**: "similar past fixes" on the approval card, and the "looks like an issue already fixed" badges on the issue list (cosine thresholds measured on the data).
+- **Hybrid Search** (`$rankFusion` of vector and lexical search): "have we seen this before?" before every fix proposal; fixes whose pull request was merged rank higher.
+- **Atlas Search**: fuzzy search over a device catalog, so "iPhone 8 she never updated" or "Samsng Galaxy Z Flip" becomes a realistic environment; `$searchMeta` facets for the dashboard's "What it has learned".
+- **Atlas Stream Processing**: a running processor reads new tickets from a change stream and keeps a counter per repository, browser engine and locale with `$merge`; several reports from one environment become a "possible shared bug" alert on the dashboard.
+- **Voyage AI models**: `voyage-4` and `voyage-code-4`, through Automated Embedding.
 
-Where a human approves: the pull request, a revision pushed to it after review, and any reply posted to a reporter (each its own click; nothing is written to GitHub before). The approval card shows the root cause, the diff, what could not be reproduced and similar past fixes. Rejecting records the decision and pushes nothing.
+Also used: **change streams** push the run page live; **multi-document transactions** keep the run, the approval, the pull request history and the memory consistent; **schema validation** (`$jsonSchema`) on the main collections; **TTL indexes** on short-lived data; **aggregation pipelines** (`$setWindowFields`, `$lookup`, `$group`, `$dateTrunc`) for the Insights page and for "Ask the memory", where Gemini calls tools over MongoDB; and **notes between runs**: an investigation that does not finish stores what it tried in `issue_notes`, and the next run of that issue starts from it (on issue #10: 5 minutes instead of 14).
 
-Reliability and errors: retries on model overload; a hard stop on a billing cap; token budget and attempt caps per run; the red/green check is mandatory (a test that does not fail before the fix is rejected and regenerated); a run that cannot reproduce or cannot verify ends with a report and a question, not a guess; corrupted file transfers into the sandbox are detected by checksum and retried; a sandbox environment that was reset between calls is set up again inside the same call; runs left unfinished by a restart are marked as interrupted; a Stop button ends a run after the step it is in; a run that ends without a fix leaves notes on its issue, so the next attempt starts from what it tried instead of from zero. Record of what the agent did: every step is a timestamped event in MongoDB (`run_events`), secrets are redacted before storage, and approvals are stored with who and when.
+### Agents That Ship
 
-Safety: user environment variables go only to the sandbox, are never stored or logged, and a run that has them never reuses a sandbox; per-user limits (3 running, 12 per hour); per-run caps on tokens, rounds, experiments and minutes; the session token is encrypted in an HttpOnly cookie and never reaches the browser.
+ReProducer does a developer's real job end to end: take an issue that only some customers hit, find out why, write the fix, run the tests and open a pull request ready for review.
 
-## MongoDB Atlas
+- **Tools**: GitHub (issues, files, git history, branch, commit, pull request, reviews, comments), a Linux sandbox with Playwright, Chromium and WebKit, Gemini (Argon, Flash, Files API, Google Search, URL context, code execution), MongoDB Atlas.
+- **Steps**: read the issue and the notes → rebuild the reporter's environment → replay under the reporter, a baseline, one-variable resets and conditions the report never mentioned → investigate in depth (code, history, framework source, web, experiments in real browsers) → write a failing test → fix → verify (red then green, existing tests, every environment) → show the root cause, why it happens, the diff, the test and what could not be emulated → **wait for approval** → open the pull request → follow it, and revise it after review.
+- **Where a human approves**: the pull request, a revision pushed after review, and any reply posted to a reporter are each a separate click; nothing is written to GitHub before.
+- **Reliability**: retries on model overload; a hard stop on a billing cap; caps on tokens, rounds, experiments and minutes; a sandbox environment that was reset between calls is repaired inside the same call; a test that does not fail before the fix is rejected and rewritten; a run that cannot reproduce ends with a report and a drafted question for the reporter, not a guess; a run that stops leaves notes so the next attempt does not start from zero; a Stop button.
+- **Record and safety**: every step is a timestamped event in MongoDB, secrets are redacted before storage, approvals are stored with who and when; user environment variables go only to the sandbox and are never stored; the GitHub token never reaches the browser or the sandbox.
 
-Atlas (M10) is the data store for everything the app knows. Features used and where:
-- **Automated Embedding** (Voyage AI): `voyage-4` on the symptom text and `voyage-code-4` on the diff of each verified fix; no embedding code in the app.
-- **Vector Search**: "which past bugs look like this one" and "which past fixes look like this diff".
-- **Atlas Search** (lexical, with token fields and facets): full-text search over past bugs; facets on the dashboard (what isolated each bug, engine, locale); fuzzy search over a **device catalog** that turns "Samsng Galaxy Z Flip" or "windows pc 23 inch monitor with nvidia rtx3060" into a realistic environment.
-- **Hybrid Search** (`$rankFusion`, semantic weight 0.7 and lexical 0.3): the "have we seen this before?" step that runs before the model proposes a fix. The hits appear on the timeline and in the prompt as hints.
-- **Atlas Stream Processing**: a processor reads new tickets from a change stream and keeps one counter per repo, engine and locale with `$merge` and an update pipeline; three reports from one environment become a "possible shared bug" alert on the dashboard within seconds (run and verified on Atlas, workspace `reproducer`).
-- **Change streams**: the run page is pushed live from the run, its timeline events and its pull request history; no polling while connected.
-- **Transactions**: approving a pull request, every change to its state (review, merged, closed) and a revision are single multi-document transactions across `runs`, `approvals`, `pr_events`, `run_events` and `bug_memory`.
-- **Memory that learns**: the outcome of the pull request is stored on the memory entry and weights recall (merged fixes rank higher, closed ones lower).
-- **Notes between runs** (`issue_notes`, validated, indexed by issue): an investigation that ends without a fix stores every environment it replayed with the result, the files and commits it read, its best explanation and the fixes verification rejected; the next run of that issue starts from them, reuses stored experiment results on the same code, and a verified fix marks them resolved.
-- **Aggregation pipelines**: `$group`, `$setWindowFields` (running totals), `$lookup`, `$dateTrunc` power the Insights page and the "Ask the memory" counts.
-- **Schema validation** (`$jsonSchema`) on `runs`, `bug_memory`, `pr_events`, `approvals`; **TTL indexes** on `tickets` and `ticket_clusters`.
-- **Vector search with a similarity score** (cosine, threshold measured on the data) powers the "looks like an issue we already fixed" badges on the issue list.
-- Collections: `tickets`, `runs`, `run_events` (timeline and audit trail), `bug_memory`, `issue_notes`, `environments` (device catalog), `approvals`, `ticket_clusters`, `pr_events`.
+## 3. Submission details
 
-The demo video shows MongoDB in use: the run page pushed live by a change stream, the dashboard's "what it has learned" facets, the Insights page (aggregations), an "Ask the memory" question (function calling over Atlas) and a shared-bug alert from Stream Processing.
+**What I built.** ReProducer, a web app and agent that turns "I can't reproduce this bug" into a verified fix waiting for approval. Built solo during the hackathon with Next.js, Gemini (Argon, the Antigravity managed agent, Flash) and MongoDB Atlas, plus a demo shop with five apps in five stacks (React, Vue, plain JavaScript, Preact, Alpine.js) and five real bugs of this kind.
+
+**The problem.** The hardest bug tickets are the ones that only happen to some customers. The code looks correct, it works on every developer's machine, and a coding assistant that reads the code finds nothing, because the cause is something only those customers have: page translation, a content blocker, an accessibility setting, a timezone, an old browser. Developers lose hours or days making the bug happen at all, before they can fix it.
+
+**How it works.** The developer picks a GitHub issue and adds one sentence about the reporter, optionally their screen recording. Argon turns that into a concrete environment (engine, device, locale, timezone, and conditions like page translation or removed browser APIs), matched against a device catalog in MongoDB. The Antigravity sandbox replays the issue under the reporter's environment, a neutral baseline, one-variable resets and conditions the report never mentioned, in Chromium and WebKit. Then the deep investigation: one Argon conversation with the app, its git history and the framework's full source in context reads files and commits, searches the web, and runs its own experiments in real browsers until it can show the environment that reproduces the bug and the mechanism behind it. In the same conversation it writes a Playwright test and a fix; the sandbox checks that the test fails before the fix and passes after it, that the existing tests pass and that every environment is green, and feeds failures back for another attempt. The developer reviews the root cause, "why this happens" with sources, the diff and the test, and only their click opens the pull request. Everything is recorded in MongoDB, verified fixes become searchable memory, and an unfinished run leaves notes for the next one. Measured on 25 October: all five demo bugs fixed and verified, 13 to 26 minutes each.
+
+**What's next.** Run it as a hosted service and a GitHub App that picks up new issues by itself; support private repositories with scoped credentials in the sandbox; add more environments (Firefox, real mobile devices, network and CPU profiles) and more kinds of projects beyond JavaScript web apps; read the reporter's details straight from support tools such as Zendesk or Intercom; share the memory across a team's repositories, so a fix found once helps everywhere.
 
 ## Short pitch (60 seconds)
 
