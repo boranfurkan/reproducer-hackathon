@@ -35,7 +35,7 @@ Models and agents used, and how:
 
 Real verification loop: failing test on the reporter's environment before the change, passing after, existing tests green, all required environments pass. Human control: the pull request is only opened after the developer clicks Approve; nothing is pushed before that.
 
-**[Measured on 25 October with deep investigation: fill in from docs/STATUS.md once all five demo bugs have run.]**
+Measured on 25 October with deep investigation: all five demo bugs were reproduced, explained and fixed end to end, each with a test that fails before the fix and passes after it in Chromium and WebKit. Runs took 13 to 26 minutes (including sandbox resets the agent repaired on its own), 235k to 2.2M new tokens; the React bug was worked with a 326k-token context holding the app, its history and React's source.
 
 ## Agents That Ship
 

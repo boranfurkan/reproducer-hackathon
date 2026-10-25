@@ -33,7 +33,7 @@ The kept run of each demo issue (latest verified fix, deep mode, through the web
 |---|---|---|---|---|---|---|---|---|
 | #8 | fixed, verified | 26 min | 2213k | 326k | 4 | 2 | 2 | 4 |
 | #9 | fixed, verified | 13 min | 824k | 172k | 2 | 1 | 1 | 2 |
-| #10 | fixed, verified | 20 min | 221k | 19k | 3 | 1 | 1 | 2 |
+| #10 | fixed, verified | 14 min | 235k | 19k | 3 | 1 | 1 | 3 |
 | #11 | fixed, verified | 14 min | 294k | 27k | 4 | 1 | 1 | 3 |
 | #12 | fixed, verified | 16 min | 406k | 53k | 3 | 1 | 1 | 3 |
 
