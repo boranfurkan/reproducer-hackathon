@@ -315,8 +315,12 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     const name = String(a.variant ?? "reporter");
     let focus = profiles.get(name);
     if (!focus) focus = applyOverrides(d.reporter, (a.overrides as Stressor["override"]) ?? {}, name).profile;
-    // A variant found by experiment joins the matrix as an added condition.
-    if (!d.known.has(focus.name)) focus = { ...focus, name: `add-${slugOf(name, "found")}` };
+    // A variant found by experiment joins the matrix as an added condition, unless a matrix row already has exactly that environment.
+    if (!d.known.has(focus.name)) {
+      const same = (p: EnvProfile) => JSON.stringify({ ...p, name: "" }) === JSON.stringify({ ...focus!, name: "" });
+      const existing = [...d.known.values()].find(same);
+      focus = existing ?? { ...focus, name: `add-${slugOf(name, "found")}` };
+    }
     const confirmed = observed.get(name) === false;
     const steps = stepsOf.get(name);
     d.say("concluded", `${hypothesis.rootCause}`, { reproduced: true, variant: name, focus: describeProfile(focus), change: describeChange(d.reporter, focus), file: hypothesis.file, explanation: hypothesis.explanation, evidence, confirmed });
