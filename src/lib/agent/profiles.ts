@@ -145,8 +145,11 @@ export interface ReplayRow {
   errors?: string[];
 }
 
-/** What went wrong in a profile as a comparable string: the failed step plus the first console error. */
-export const failureSignature = (r: ReplayRow): string => `${r.failure ?? ""}|${r.errors?.[0] ?? ""}`;
+/** An error message without the engine-specific part: WebKit adds "(In 'x()', 'x' is undefined)", engines differ in final punctuation and case. */
+const normalizeError = (e: string) => e.replace(/\s*\(In '[\s\S]*$/, "").replace(/[.\s]+$/, "").trim().toLowerCase();
+
+/** What went wrong in a profile as a comparable string: the failed step plus the first console error, worded the same in every engine. */
+export const failureSignature = (r: ReplayRow): string => `${r.failure ?? ""}|${normalizeError(r.errors?.[0] ?? "")}`;
 
 /**
  * A repository can hold several bugs, and the extra-condition profiles find them. After a fix, only these profiles must pass:

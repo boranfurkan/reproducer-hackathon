@@ -112,3 +112,14 @@ test("the new conditions can be added by a stressor, are validated, and are name
   assert.match(describeChange(reporter, out[0]), /page translated/);
   assert.ok(ablations({ ...reporter, translated: true, adBlock: true }).map((a) => a.variable).includes("translation"));
 });
+
+test("the same error worded by different engines is one problem", () => {
+  const rows = [
+    { name: "reporter", ok: false, failure: "expect_count_min x", errors: ["crypto.randomUUID is not a function. (In 'crypto.randomUUID()', 'crypto.randomUUID' is undefined)"] },
+    { name: "reset-engine", ok: false, failure: "expect_count_min x", errors: ["crypto.randomUUID is not a function"] },
+    { name: "add-other", ok: false, failure: "click y", errors: ["something else"] },
+  ];
+  const { required, unrelated } = splitByIssue(rows, "reporter");
+  assert.ok(required.has("reset-engine"));
+  assert.deepEqual(unrelated.map((r) => r.name), ["add-other"]);
+});

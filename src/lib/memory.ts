@@ -188,15 +188,18 @@ export async function similarBySymptom(text: string, limit = 3, minScore = 0.76)
   }
 }
 
-/** Past fixes whose diff looks like this one (voyage-code-4 embeddings). */
-export async function similarFixes(diff: string, limit = 3, excludeRunId?: string): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string; outcome?: string }[]> {
+/**
+ * Past fixes whose diff looks like this one (voyage-code-4 embeddings). Measured on the demo memory: unrelated fixes score 0.74 to 0.80,
+ * the same fix 0.94 to 0.98, so only scores from 0.85 count as similar.
+ */
+export async function similarFixes(diff: string, limit = 3, excludeRunId?: string, minScore = 0.85): Promise<{ id: string; repo: string; issueNumber: number; title: string; file: string; isolatedVariable: string; outcome?: string }[]> {
   try {
     const col = await collection<BugMemoryDoc>("bug_memory");
     const docs = await col
-      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1, isolatedVariable: 1, outcome: 1 } }])
+      .aggregate([{ $vectorSearch: { index: MEMORY_CODE_INDEX, path: "diff", query: diff.slice(0, 6000), numCandidates: 50, limit: limit + 1 } }, { $project: { repo: 1, issueNumber: 1, title: 1, file: 1, runId: 1, isolatedVariable: 1, outcome: 1, score: { $meta: "vectorSearchScore" } } }])
       .toArray();
     return docs
-      .filter((d) => !excludeRunId || String(d.runId) !== excludeRunId)
+      .filter((d) => (!excludeRunId || String(d.runId) !== excludeRunId) && d.score >= minScore)
       .slice(0, limit)
       
       .map((d) => ({ id: String(d._id), repo: d.repo, issueNumber: d.issueNumber, title: d.title, file: d.file, isolatedVariable: String(d.isolatedVariable ?? ""), outcome: d.outcome }));
