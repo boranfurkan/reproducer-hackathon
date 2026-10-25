@@ -191,7 +191,9 @@ export async function investigate(
     say("hypothesis", `Replay plan: ${plan.steps.length} steps. Success means: ${plan.successCriterion}`, plan);
     return { understanding, reporter, plan, code };
   })();
-  const [{ understanding, reporter, plan, code }] = await Promise.all([planP, bootP]);
+  const [{ understanding, reporter, plan: firstPlan, code }] = await Promise.all([planP, bootP]);
+  // The deep investigation may replace the steps with the ones its reproducing experiment used.
+  let plan = firstPlan;
   out.understanding = understanding;
   out.plan = plan;
 
@@ -240,15 +242,24 @@ export async function investigate(
     });
     out.deep = { ...deep.stats, evidence: deep.evidence, confirmed: deep.confirmed, cachedTokens: budget.cached };
     if (deep.stoppedReason === "Stopped by you.") return stopped("Stopped by you. Nothing was changed.");
-    // A condition found by experiment joins the matrix (round 2), so the fix is checked against it like every other environment.
-    if (deep.reproduced && deep.focus && !byName.has(deep.focus.name)) {
-      profiles.push(deep.focus);
-      byName.set(deep.focus.name, deep.focus);
+    // What the investigation found joins the matrix (round 2), so the fix is checked against it like every other environment: a condition
+    // found by experiment becomes a row, and steps it wrote to reproduce the bug become the replay (the first plan may have missed it).
+    const round1Row = deep.focus ? m1.find((r) => r.name === deep!.focus!.name) : undefined;
+    if (deep.reproduced && deep.focus && (!byName.has(deep.focus.name) || deep.steps || round1Row?.ok)) {
+      if (deep.steps) {
+        plan = { ...plan, steps: deep.steps };
+        out.plan = plan;
+        say("hypothesis", `Replay updated with the steps of the experiment that reproduced the bug (${deep.steps.length} steps)`, plan);
+      }
+      if (!byName.has(deep.focus.name)) {
+        profiles.push(deep.focus);
+        byName.set(deep.focus.name, deep.focus);
+      }
       job = makeJob(profiles);
       const r2 = await sandbox.runWith([job], `bash ${HARNESS_DIR}/matrix.sh`, "matrix-2");
       m = enrich(parseMatrix(between(r2.stdout, "@@RESULT@@", "@@END@@"), r2));
       out.matrix = m;
-      say("matrix", `Matrix round 2 with the condition the investigation found (${m.length} profiles)\n${formatMatrix(m)}`, m);
+      say("matrix", `Matrix round 2 with what the investigation found (${m.length} profiles)\n${formatMatrix(m)}`, m);
     }
   }
 

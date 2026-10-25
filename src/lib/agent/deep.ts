@@ -53,6 +53,8 @@ export interface DeepResult {
   focus?: EnvProfile;
   /** Whether an experiment or the matrix actually saw that profile fail. */
   confirmed: boolean;
+  /** The steps of the experiment that reproduced it, when they differ from the replay plan (they become the replay for verification). */
+  steps?: ReplayStep[];
   hypothesis?: { rootCause: string; file: string; explanation: string };
   evidence: string[];
   missing: string[];
@@ -165,6 +167,8 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
   const stats = { rounds: 0, experiments: 0, filesRead: 0, searches: 0, webSearches: 0, contextTokens: 0, minutes: 0 };
   const profiles = new Map(d.known);
   const observed = new Map<string, boolean>(d.round1.map((r) => [r.name, r.ok]));
+  // The custom steps each experiment variant ran with (absent: the replay plan's steps).
+  const stepsOf = new Map<string, ReplayStep[] | undefined>();
   const step = (summary: string, data?: unknown) => d.say("deep_step", summary, data);
 
   // 1. Everything in one context: the app, its history and the framework source the failing page loads.
@@ -314,8 +318,9 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     // A variant found by experiment joins the matrix as an added condition.
     if (!d.known.has(focus.name)) focus = { ...focus, name: `add-${slugOf(name, "found")}` };
     const confirmed = observed.get(name) === false;
+    const steps = stepsOf.get(name);
     d.say("concluded", `${hypothesis.rootCause}`, { reproduced: true, variant: name, focus: describeProfile(focus), change: describeChange(d.reporter, focus), file: hypothesis.file, explanation: hypothesis.explanation, evidence, confirmed });
-    return { reproduced: true, confirmed, focus, hypothesis, evidence, missing };
+    return { reproduced: true, confirmed, focus, hypothesis, evidence, missing, ...(steps ? { steps } : {}) };
   }
 
   async function runTool(name: string, a: Record<string, unknown>): Promise<string> {
@@ -400,6 +405,7 @@ export async function deepInvestigate(d: DeepInput): Promise<DeepResult> {
     });
     for (const row of rows) {
       observed.set(row.name, row.ok);
+      stepsOf.set(row.name, steps === d.plan.steps ? undefined : steps);
       profiles.set(row.name, built.find((b) => b.name === row.name)!);
     }
     const failing = rows.filter((x) => !x.ok).length;
